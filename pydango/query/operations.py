@@ -1,3 +1,4 @@
+import sys
 from enum import Enum
 from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Union, overload
 
@@ -48,9 +49,9 @@ AUTOMATIC_TYPES = (
     CollectionExpression,
     # Aliased,
 )
-try:
+if sys.version_info >= (3, 10):
     from typing import TypeAlias
-except ImportError:
+else:
     from typing_extensions import TypeAlias
 
 
@@ -61,7 +62,7 @@ class ForOperation(Operation):
         in_: Optional[Union[IterableExpression, list]] = None,
         *,
         query_ref: "AQLQuery",
-        options: LoopOptions = None,
+        options: Optional[LoopOptions] = None,
     ):
         super().__init__(query_ref)
         self.options = options
@@ -181,7 +182,7 @@ class TraversalOperation(Operation):
             tuple[IteratorExpression, IteratorExpression, IteratorExpression],
         ],
         edge: Union[str, CollectionExpression],
-        start: Union[LiteralExpression, str],
+        start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
         depth: Union[RangeExpression, range, tuple[int, int]],
         direction: TraversalDirection,
         query_ref: "AQLQuery",
@@ -297,7 +298,7 @@ class ReturnOperation(Operation):
         elif isinstance(return_expr, list):
             for i in return_expr:
                 if not isinstance(i, FieldExpression):
-                    raise "Not Field"
+                    raise Exception("todo: check this")
         elif isinstance(return_expr, Mapping):
             return_expr = ObjectExpression(return_expr)
 
@@ -389,7 +390,7 @@ class RemoveOperation(Operation):
 class UpdateOperation(Operation):
     def __init__(
         self,
-        key: str,
+        key: Union[str, dict, ObjectExpression],
         obj: Union[ObjectExpression, dict],
         collection: Union[CollectionExpression, str],
         *,
@@ -426,7 +427,7 @@ class UpdateOperation(Operation):
 class ReplaceOperation(Operation):
     def __init__(
         self,
-        key: str,
+        key: Union[str, dict, ObjectExpression],
         obj: Union[ObjectExpression, dict],
         collection: Union[CollectionExpression, str],
         *,
@@ -491,8 +492,8 @@ class UpsertOperation(Operation):
         filter_: Union[ObjectExpression, dict],
         collection: Union[CollectionExpression, str],
         insert: Union[ObjectExpression, dict],
-        update: Union[ObjectExpression, dict] = None,
-        replace: Union[ObjectExpression, dict] = None,
+        update: Optional[Union[ObjectExpression, dict]] = None,
+        replace: Optional[Union[ObjectExpression, dict]] = None,
         options: Optional[UpsertOptions] = None,
     ):
         super().__init__(query_ref)

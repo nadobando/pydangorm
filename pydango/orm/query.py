@@ -28,7 +28,6 @@ from pydango.query.expressions import (
     IterableExpression,
     IteratorExpression,
     LiteralExpression,
-    NotSet,
     ObjectExpression,
     ReturnableMixin,
     VariableExpression,
@@ -90,8 +89,6 @@ class ORMQuery(AQLQuery):
         elif isinstance(collection_or_variable, Aliased):
             if in_ is not None:
                 raise AssertionError(f"you should not pass in_ when using {collection_or_variable.__name__}")
-            if collection_or_variable.alias is NotSet:
-                collection_or_variable.alias = None
             collection_expression = CollectionExpression(
                 collection_or_variable.entity.Collection.name, collection_or_variable.alias
             )

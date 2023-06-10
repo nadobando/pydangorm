@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Type, Union
 
 try:
-    from typing import TypeAlias
+    from typing import TypeAlias  # type: ignore[attr-defined]
 except ImportError:
     from typing_extensions import TypeAlias
 
@@ -112,7 +112,10 @@ class VariableExpression(Expression, ReturnableMixin):
     def __init__(self, var_name: Optional[str] = None):
         self.var_name = var_name or NotSet
 
-    def compile(self, _: "AQLQuery") -> str:
+    def compile(self, query_ref: "AQLQuery") -> str:
+        if isinstance(self.var_name, _NotSet):
+            self.var_name = query_ref.bind_variable()
+
         return self.var_name
 
     def __repr__(self):
@@ -268,7 +271,7 @@ class IterableExpression(Expression, ABC):
     """
 
     def __init__(self, iterator: Optional[Union[IteratorExpression, str]] = None):
-        if iterator is None:
+        if iterator is None or iterator is NotSet:
             self.iterator = IteratorExpression()
         elif isinstance(iterator, str):
             self.iterator = IteratorExpression(iterator)

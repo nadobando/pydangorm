@@ -1,12 +1,13 @@
 import json
 import logging
-from typing import Optional, Union, overload
+import sys
+from typing import TYPE_CHECKING, Optional, Union, overload
 
 from pydango.orm.encoders import jsonable_encoder
 
-try:
+if sys.version_info >= (3, 10):
     from typing import Self
-except ImportError:
+else:
     from typing_extensions import Self
 
 from aioarango.database import Database
@@ -19,7 +20,6 @@ from pydango.query.expressions import (
     In,
     IterableExpression,
     IteratorExpression,
-    LiteralExpression,
     ObjectExpression,
     QueryExpression,
     ReturnableMixin,
@@ -56,6 +56,9 @@ from pydango.query.options import (
     UpdateOptions,
 )
 
+if TYPE_CHECKING:
+    from pydango.query.expressions import LiteralExpression
+
 logger = logging.getLogger(__name__)
 
 
@@ -90,9 +93,9 @@ class AQLQuery(QueryExpression):
             aql.append(repr(i))
         return self.sep.join(aql)
 
-    def get_var_name(self):
+    def _get_var_name(self):
         if self._parent:
-            return self._parent.get_var_name()
+            return self._parent._get_var_name()
         self._var_counter += 1
         return f"var{self._var_counter}"
 
@@ -126,7 +129,7 @@ class AQLQuery(QueryExpression):
             tuple[IteratorExpression, IteratorExpression, IteratorExpression],
         ],
         edge: Union[str, CollectionExpression],
-        start: Union[LiteralExpression, VariableExpression, FieldExpression, str],
+        start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
         depth: Union[RangeExpression, range, tuple[int, int]],
         direction: TraversalDirection,
     ):
@@ -183,20 +186,16 @@ class AQLQuery(QueryExpression):
             return self._compiled
         aql = []
 
-        for var in self.__dynamic_vars__:
-            var.var_name = self.get_var_name()
-
         for i in self._ops:
             aql.append(i.compile())
 
         self._compiled = self.sep.join(aql)
         return self._compiled
 
-    def bind_variable(self, variable: VariableExpression):
-        # todo: bind variable
-        ...
+    def bind_variable(self) -> str:
+        return self._get_var_name()
 
-    def bind_parameter(self, literal: LiteralExpression) -> Union[str, None]:
+    def bind_parameter(self, literal: "LiteralExpression") -> str:
         if self._parent:
             return self._parent.bind_parameter(literal)
         is_hashable = False

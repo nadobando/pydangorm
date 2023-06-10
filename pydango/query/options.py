@@ -8,7 +8,7 @@ from pydango.query.utils import Compilable
 
 
 class Options(Compilable):
-    _map = {}
+    _map: dict = {}
 
     def compile(self):
         pairs = []
