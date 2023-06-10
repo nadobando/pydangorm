@@ -1,101 +1,65 @@
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, cast
 
 from pydantic.fields import ModelField
 
+from pydango.connection import DALI_SESSION_KW
+from pydango.orm.proxy import LazyProxy
 from pydango.query.expressions import (
-    BinaryLogicalExpression,
-    ConditionExpression,
     Expression,
     FieldExpression,
     IteratorExpression,
-    LiteralExpression,
-    SortExpression,
+    VariableExpression,
 )
-from pydango.query.utils import SortDirection
 
 if TYPE_CHECKING:
-    from pydango.orm.query import ORMQuery
+    from pydango.orm.models import BaseArangoModel, Relationship
+    from pydango.orm.types import ArangoModel
+    from pydango.query import AQLQuery
 
-
-# class LateBindVariable(Expression):
-#     def __init__(self, model, field):
-#         self.field = field
-#         self.model = model
-#         self.value = None
-#
-#     def bind(self, value):
-#         self.value = value
-#
-#     def __str__(self):
-#         if self.value is None:
-#             raise ValueError("Value for LateBindParam has not been bound.")
-#         return str(self.value)
-
-
-@dataclass
-class Sort:
-    model: Any = None
-    field: ModelField = None
-    direction: str = None
-
-
-class ExpressionField:
-    def __init__(self, model, field: ModelField):
-        self.__model__ = model
-        self.field = field
-
-    def __getattr__(self, item):
-        return getattr(self.field.type_, item)
-
-    def __repr__(self):
-        return f"<ExpressionField: {self.field.name} -> {self.field.annotation}>"
-
-    @staticmethod
-    def __get_other__(other):
-        if isinstance(other, ExpressionField):
-            other = FieldExpression(other.field.name, other.__model__)
-        if isinstance(other, Expression):
-            return other
-        else:
-            other = LiteralExpression(other)
-        return other
-
-    def __eq__(self, other):
-        other = self.__get_other__(other)
-        return ConditionExpression("==", FieldExpression(self.field.name, self.__model__), other)
-
-    def __gt__(self, other):
-        other = self.__get_other__(other)
-        return ConditionExpression(">", FieldExpression(self.field.name, self.__model__), other)
-
-    def __lt__(self, other):
-        other = self.__get_other__(other)
-        return ConditionExpression(">", FieldExpression(self.field.name, self.__model__), other)
-
-    def __neg__(self):
-        return SortExpression(FieldExpression(self.field.name, self.__model__), SortDirection.DESC)
-
-    def __pos__(self):
-        return SortExpression(FieldExpression(self.field.name, self.__model__), SortDirection.ASC)
-
-    def __and__(self, other):
-        other = self.__get_other__(other)
-        return BinaryLogicalExpression("&&", FieldExpression(self.field.name, self.__model__), other)
+FieldType = TypeVar("FieldType")
 
 
 class ModelFieldExpression(FieldExpression):
-    def compile(self, query_ref: "ORMQuery") -> str:
+    def compile(self, query_ref: AQLQuery) -> str:
         if isinstance(self.field, Expression):
-            return f"{self.parent.compile(query_ref)}[{self.field.compile(query_ref)}]"
+            return super().compile(query_ref)
         else:
             if not isinstance(self.parent, IteratorExpression):
-                compiled = query_ref.orm_bound_vars[self.parent]
+                # currently there is importing ORMQuery creates a circular dependency
+                compiled = query_ref.orm_bound_vars[self.parent]  # type: ignore[attr-defined]
                 return f"{compiled.compile(query_ref)}.{self.field}"
             return super().compile(query_ref)
 
-    # def __str__(self):
-    #     return self.field
-
     def __hash__(self):
         return hash(self.field)
+
+
+class DocFieldDescriptor(Generic[FieldType]):
+    def __init__(self, field: ModelField, relation: Optional[Relationship] = None):
+        self.relation = relation
+        self.field = field
+
+    def __set__(self, instance, value):
+        raise AssertionError()
+        # instance.__dict__[self.name] = LazyProxy(value)
+
+    def __get__(
+        self, instance: Optional[ArangoModel], owner: Type[BaseArangoModel]
+    ) -> Union[LazyProxy, ModelFieldExpression, None]:
+        if not instance and self.field.name in owner.__fields__.keys():
+            return ModelFieldExpression(self.field.name, cast(VariableExpression, owner))
+
+        field_value = instance.__dict__.get(self.field.name)
+        if field_value is not None:
+            return field_value
+
+        if self.relation:
+            return LazyProxy[owner](  # type: ignore[valid-type]
+                field_value, self.field, getattr(instance, DALI_SESSION_KW, None)  # type: ignore[arg-type]
+            )
+        return None
+
+    def __set_name__(self, owner, name):
+        self.name = name

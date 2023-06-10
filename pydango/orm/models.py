@@ -11,6 +11,7 @@ from typing import (
     Dict,
     ForwardRef,
     Generic,
+    Mapping,
     Optional,
     Type,
     Union,
@@ -23,9 +24,9 @@ import pydantic.typing
 
 from pydango.orm.types import ArangoModel, TEdge
 
-try:
+if sys.version_info >= (3, 10):
     from typing import TypeAlias, dataclass_transform
-except ImportError:
+else:
     from typing_extensions import TypeAlias, dataclass_transform
 
 from pydantic import BaseConfig, BaseModel
@@ -48,8 +49,7 @@ from pydantic.utils import GetterDict, Representation
 
 from pydango import NAO
 from pydango.index import Index
-from pydango.orm.descriptor import DocFieldDescriptor
-from pydango.orm.fields import ModelFieldExpression
+from pydango.orm.fields import DocFieldDescriptor, ModelFieldExpression
 from pydango.orm.relations import LinkTypes
 
 if TYPE_CHECKING:
@@ -97,13 +97,13 @@ class Relationship(Representation):
     def __init__(
         self,
         *,
-        field: str,
+        field: ModelField,
         back_populates: Optional[str] = None,
-        link_model: Optional[Any] = None,
-        via_model: Type[TEdge] = None,
+        link_model: Type[VertexModel],
+        via_model: Optional[Type[TEdge]] = None,
         link_type: LinkTypes,
     ):
-        self.via_model: TEdge = via_model
+        self.via_model = via_model
         self.link_type = link_type
         self.field = field
         self.link_model = link_model
@@ -135,7 +135,9 @@ def get_relation(field_name: str, annotation: Any, value: Any, config: Type[Base
         config=BaseConfig,
     )
     if field.shape in LIST_SHAPES:
-        link_model = field.sub_fields[0].type_
+        if field.sub_fields:
+            link_model = field.sub_fields[0].type_
+
         if field.allow_none is True:
             link_type = via_model and LinkTypes.OPTIONAL_EDGE_LIST or LinkTypes.OPTIONAL_LIST
         else:
@@ -164,7 +166,7 @@ class CollectionType(int, Enum):
 
 
 class CollectionConfig:
-    name: str = None
+    name: str
     type: CollectionType
     wait_for_sync: Optional[bool] = False
     sync_json_schema: Optional[bool] = True
@@ -220,7 +222,7 @@ class ArangoModelMeta(ModelMetaclass):
             new_cls.__relationships__ = {}
             new_cls.__relationships_fields__ = {}
             return new_cls
-        relationships: dict[str, Relationship] = {}
+        relationships = {}
 
         original_annotations = resolve_annotations(
             namespace.get("__annotations__", {}), namespace.get("__module__", None)
@@ -248,7 +250,6 @@ class ArangoModelMeta(ModelMetaclass):
         )
         relationship_fields = {}
         for field_name, field in new_cls.__fields__.items():
-            field: ModelField
             if field_name in relationships:
                 model_field = get_pydango_field(field, RelationModelField)
                 # todo improve this
@@ -281,19 +282,19 @@ class ArangoModelMeta(ModelMetaclass):
 
 
 RelationshipFields: TypeAlias = dict[str, RelationModelField]
-Relationships = dict[str, Relationship]
+Relationships: TypeAlias = dict[str, Relationship]
 
 
 class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
-    id: Optional[str] = Field(alias="_id")
-    key: Optional[str] = Field(alias="_key")
-    rev: Optional[str] = Field(alias="_rev")
+    id: Optional[str] = Field(None, alias="_id")
+    key: Optional[str] = Field(None, alias="_key")
+    rev: Optional[str] = Field(None, alias="_rev")
 
     __dali__session__: Optional[PydangoSession] = PrivateAttr()
 
     if TYPE_CHECKING:
-        __relationships__: Relationships = None
-        __relationships_fields__: RelationshipFields = None
+        __relationships__: Relationships = {}
+        __relationships_fields__: RelationshipFields = {}
 
     class Config(BaseConfig):
         arbitrary_types_allowed = True
@@ -305,7 +306,7 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
         ...
 
     @classmethod
-    def _decompose_class(cls: Type[Model], obj: Any) -> GetterDict:
+    def _decompose_class(cls: Type[Model], obj: Any) -> Union[GetterDict, dict]:  # type: ignore[override]
         if isinstance(obj, dict):
             return obj
         return super()._decompose_class(obj)
@@ -321,18 +322,17 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
         keys = self.__dict__.keys()
         unset = keys - field_set
         if not exclude_unset:
-            _exclude = dict.fromkeys({field for field in unset if field in OPERATIONAL_FIELDS}, Ellipsis)
+            _exclude = cast(Mapping, {field: True for field in unset if field in OPERATIONAL_FIELDS})
             if not exclude:
                 exclude = _exclude
             else:
-                exclude.update(_exclude)
+                exclude.update(_exclude)  # type: ignore[attr-defined]
 
         return super()._calculate_keys(include, exclude, exclude_unset, update)
 
     @classmethod
-    def from_orm(cls: Type[BaseArangoModel], obj: Any, *, session=None) -> ArangoModel:
+    def from_orm(cls: Type[ArangoModel], obj: Any, *, session=None) -> ArangoModel:  # type: ignore[misc]
         for field_name, field in cls.__relationships_fields__.items():
-            field: ModelField
             exists_in_orm = obj.get(field_name, None)
             if exists_in_orm:
                 obj[field_name] = exists_in_orm
@@ -359,9 +359,6 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
                 else:
                     globalns = {}
                 relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, globalns, localns)
-
-    def save_dict(self) -> DictStrAny:
-        return self.dict(by_alias=True, exclude=self.__relationships_fields__.keys())
 
 
 class VertexCollectionConfig(CollectionConfig):

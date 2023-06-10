@@ -2,7 +2,7 @@ import dataclasses
 import logging
 from collections import OrderedDict, defaultdict
 from itertools import groupby
-from typing import Iterator, Optional, Type, Union
+from typing import Iterator, Optional, Type, Union, cast
 
 from aioarango.collection import StandardCollection
 from aioarango.database import StandardDatabase
@@ -36,7 +36,7 @@ def _collection_from_model(database: StandardDatabase, model: Type[ArangoModel])
     return database.collection(model.Collection.name)
 
 
-def _group_by_relation(model: BaseArangoModel) -> Iterator[tuple[TVertexModel, str]]:
+def _group_by_relation(model: BaseArangoModel) -> Iterator[tuple[tuple[TVertexModel, TEdge], str]]:
     relationships = model.__relationships__
     for model, group in groupby(
         relationships,
@@ -55,7 +55,7 @@ class PydangoSession:
         query = ORMQuery()
         _visited = set()
         edge_collections, edge_vertex_index, vertex_collections = cls._build_graph(_visited, document)
-        vertex_let_queries = {}
+        vertex_let_queries: dict[VertexModel, VariableExpression] = {}
 
         for v in vertex_collections:
             from_var, vertices = cls._build_vertex_query(v, vertex_collections, vertex_let_queries)
@@ -65,7 +65,7 @@ class PydangoSession:
         query.let(main, First(vertex_let_queries[document.__class__]))
 
         for e, coll in edge_vertex_index.items():
-            edges = []
+            edge_vars = []
             for (from_model, to_model), instances in coll.items():
                 for instance, rels in instances.items():
                     iterator, new_rels, ret = cls._bind_edge(
@@ -83,12 +83,14 @@ class PydangoSession:
                         merged,
                         for_(merger, RangeExpression(0, Length(edge) - 1)).return_(Merge(edge[merger], v[merger])),
                     )
-                    edges.append(merged)
-
-                if len(edges) > 1:
-                    edges = UnionArrays(*edges)
-                elif len(edges) == 1:
-                    edges = edges[0]
+                    edge_vars.append(merged)
+                edges: Union[VariableExpression, list[VariableExpression]]
+                if len(edge_vars) > 1:
+                    edges = cast(list[VariableExpression], UnionArrays(*edge_vars))
+                elif len(edge_vars) == 1:
+                    edges = cast(VariableExpression, edge_vars[0])
+                else:
+                    continue
 
                 edge_iter = IteratorExpression()
                 query.let(VariableExpression(), for_(edge_iter, edges).insert(edge_iter, e.Collection.name))
@@ -130,7 +132,7 @@ class PydangoSession:
 
             edge_vertex_index[edge_cls][model.__class__, relation_doc.__class__][id(model)].append(id(relation_doc))
 
-        def traverse(model: BaseArangoModel, visited: set):
+        def traverse(model: TVertexModel, visited: set):
             if id(model) in visited:
                 return
 
@@ -161,7 +163,7 @@ class PydangoSession:
         collection = await get_or_create_collection(self.database, model)
         if model.Collection.indexes:
             logger.debug("creating indexes", extra=dict(indexes=model.Collection.indexes, model=model))
-        for i in model.Collection.indexes:
+        for i in model.Collection.indexes or []:
             await index.mapping[i.__class__](collection, **dataclasses.asdict(i))
 
     async def save(self, document: ArangoModel) -> dict:
@@ -179,7 +181,7 @@ class PydangoSession:
             # result[DALI_SESSION_KW] = self
             if result is None and should_raise:
                 raise DocumentNotFoundError()
-            document = model.from_orm(result, session=self)
+            document: ArangoModel = model.from_orm(result, session=self)
             return document
         except DocumentNotFoundError:
             return None

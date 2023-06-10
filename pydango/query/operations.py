@@ -1,6 +1,16 @@
 import sys
+from abc import ABC
 from enum import Enum
-from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Union, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Mapping,
+    Optional,
+    Sequence,
+    Union,
+    cast,
+    overload,
+)
 
 from pydango.query.expressions import (
     AssignmentExpression,
@@ -12,7 +22,6 @@ from pydango.query.expressions import (
     ListExpression,
     LiteralExpression,
     LogicalExpression,
-    NotSet,
     ObjectExpression,
     QueryExpression,
     ReturnableMixin,
@@ -20,6 +29,7 @@ from pydango.query.expressions import (
     VariableExpression,
 )
 from pydango.query.options import (
+    BaseModificationOptions,
     CollectOptions,
     LoopOptions,
     RemoveOptions,
@@ -67,7 +77,7 @@ class ForOperation(Operation):
         super().__init__(query_ref)
         self.options = options
         self.query_ref = query_ref
-
+        self.variable: VariableExpression
         if isinstance(collection_or_variable, MANUAL_TYPES):
             if isinstance(in_, list):
                 in_ = ListExpression(tuple(in_))
@@ -83,35 +93,30 @@ class ForOperation(Operation):
                 if collection_or_variable.var_name in query_ref.__used_vars__:
                     raise AttributeError(f"{collection_or_variable.var_name} variable is already defined")
 
-                if collection_or_variable.var_name is NotSet:
-                    self.query_ref.__dynamic_vars__.append(collection_or_variable)
-
-                else:
+                if collection_or_variable.var_name:
                     self.query_ref.__used_vars__.add(collection_or_variable.var_name)
+
+            if isinstance(collection_or_variable, str):
+                collection_or_variable = IteratorExpression(collection_or_variable)
 
             self.variable = collection_or_variable
             self.in_ = in_
 
-        # elif in_ is not None and isinstance(collection_or_variable, AUTOMATIC_TYPES):
-        #     raise AssertionError(
-        #         f"you must not provide in_ field when using {AUTOMATIC_TYPES}"
-        #     )
-
         elif isinstance(collection_or_variable, AUTOMATIC_TYPES):
             if isinstance(collection_or_variable, CollectionExpression):
-                if collection_or_variable.iterator.var_name is NotSet:
-                    self.query_ref.__dynamic_vars__.append(collection_or_variable.iterator)
-                elif not collection_or_variable.iterator:
+                if not collection_or_variable.iterator:
                     i = IteratorExpression()
                     collection_or_variable.iterator = i
-                    self.query_ref.__dynamic_vars__.append(i)
+
                 elif collection_or_variable.iterator.var_name in query_ref.__used_vars__:
                     raise ValueError(f"{collection_or_variable.iterator.var_name} variable is already defined")
-                else:
+                elif collection_or_variable.iterator.var_name:
                     query_ref.__used_vars__.add(collection_or_variable.iterator.var_name)
 
-                self.in_ = collection_or_variable
-                self.variable = collection_or_variable.iterator or IteratorExpression(collection_or_variable.value)
+                self.in_ = cast(IterableExpression, collection_or_variable)
+                self.variable = (
+                    collection_or_variable.iterator
+                )  # or IteratorExpression(collection_or_variable.value) todo: check this case
 
             elif isinstance(collection_or_variable, ListExpression):
                 if not collection_or_variable.iterator:
@@ -124,10 +129,10 @@ class ForOperation(Operation):
 
                 self.in_ = collection_or_variable
                 self.variable = collection_or_variable.iterator or IteratorExpression(collection_or_variable.value)
-
-        else:
-            self.variable = collection_or_variable
-            self.in_ = in_
+        # todo: check this case
+        # else:
+        #     self.variable = collection_or_variable
+        #     self.in_ = in_
 
     def compile(self) -> str:
         compiled = f"FOR {self.variable.compile(self.query_ref)} IN {self.in_.compile(self.query_ref)}"
@@ -177,9 +182,11 @@ class TraversalOperation(Operation):
         self,
         iterators: Union[
             IteratorExpression,
+            list[IteratorExpression],
             tuple[IteratorExpression],
             tuple[IteratorExpression, IteratorExpression],
             tuple[IteratorExpression, IteratorExpression, IteratorExpression],
+            tuple[IteratorExpression, ...],
         ],
         edge: Union[str, CollectionExpression],
         start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
@@ -190,12 +197,19 @@ class TraversalOperation(Operation):
         super().__init__(query_ref)
         if isinstance(edge, str):
             edge = CollectionExpression(edge)
+        # handle iterators
+
         if isinstance(iterators, IteratorExpression):
-            iterators = [iterators]
+            iterators = (iterators,)
+        if isinstance(iterators, list):
+            iterators = tuple(iterators)
+
+        # handle depth
         if isinstance(depth, tuple):
             depth = RangeExpression(depth[0], depth[1])
         elif isinstance(depth, range):
             depth = RangeExpression(depth.start, depth.stop)
+
         if isinstance(start, str):
             start = LiteralExpression(start)
         self.iterators = iterators
@@ -210,8 +224,9 @@ class TraversalOperation(Operation):
             compiled_iterators.append(i.compile(self.query_ref))
 
         return (
-            f"FOR {', '.join(compiled_iterators)} IN"
-            f" {self.depth.compile(self.query_ref)} {self.direction.value} {self.start.compile(self.query_ref)} {self.edge.compile(self.query_ref)}"
+            f"FOR {', '.join(compiled_iterators)} IN "
+            f"{self.depth.compile(self.query_ref)} {self.direction.value} {self.start.compile(self.query_ref)} "
+            f"{self.edge.compile(self.query_ref)}"
         )
 
     def __repr__(self):
@@ -236,9 +251,9 @@ class LetOperation(Operation):
         if isinstance(variable, str):
             variable = VariableExpression(variable)
 
-        if variable.var_name is NotSet:
-            self.query_ref.__dynamic_vars__.append(variable)
-        else:
+        if variable.var_name:
+            # self.query_ref.__dynamic_vars__.append(variable)
+            # else:
             self.query_ref.__used_vars__.add(variable.var_name)
 
         if isinstance(expression, QueryExpression):
@@ -272,24 +287,31 @@ class FilterOperation(Operation):
         return f"FILTER {repr(self.condition)}"
 
 
-SortParams = Union[SortExpression, tuple[FieldExpression, SortDirection]]
+SortParams = Union[SortExpression, FieldExpression, tuple[FieldExpression, SortDirection]]
 
 
 class SortOperation(Operation):
     def __init__(self, *sort_list: SortParams, query_ref: "AQLQuery"):
         super().__init__(query_ref=query_ref)
-        self.query_ref = query_ref
         self.sort_list = sort_list
 
     def compile(self, *args, **kwargs) -> str:
-        return f"SORT {', '.join(i.compile(self.query_ref) for i in self.sort_list)}"
+        comp = []
+        for expr in self.sort_list:
+            if isinstance(expr, tuple):
+                comp.append(SortExpression(expr[0], expr[1]).compile(self.query_ref))
+            elif isinstance(expr, FieldExpression):
+                comp.append(SortExpression(expr).compile(self.query_ref))
+            else:
+                comp.append(expr.compile(self.query_ref))
+        return f"SORT {', '.join(comp)}"
 
     def __repr__(self):
         return f"SORT {', '.join(repr(i) for i in self.sort_list)}"
 
 
 class ReturnOperation(Operation):
-    def __init__(self, return_expr: ReturnableMixin, query_ref: "AQLQuery", *, distinct=None):
+    def __init__(self, return_expr: Union[ReturnableMixin, dict], query_ref: "AQLQuery", *, distinct=None):
         super().__init__(query_ref=query_ref)
 
         if isinstance(return_expr, CollectionExpression):
@@ -359,7 +381,7 @@ class InsertOperation(Operation):
 
 
 class RemoveOperation(Operation):
-    def __init__(self, expression, collection, *, options: RemoveOptions, query_ref: "AQLQuery"):
+    def __init__(self, expression, collection, *, options: Optional[RemoveOptions], query_ref: "AQLQuery"):
         super().__init__(query_ref=query_ref)
         self.options = options
 
@@ -387,7 +409,48 @@ class RemoveOperation(Operation):
         return _repr
 
 
-class UpdateOperation(Operation):
+class BaseChangeOperation(Operation, ABC):
+    _keyword: str
+
+    def __init__(
+        self,
+        key: Union[str, dict, ObjectExpression],
+        obj: Union[ObjectExpression, dict],
+        collection: Union[CollectionExpression, str],
+        *,
+        options: Optional[BaseModificationOptions],
+        query_ref,
+    ):
+        super().__init__(query_ref=query_ref)
+        if isinstance(key, dict):
+            key = ObjectExpression(key)
+        if isinstance(obj, dict):
+            obj = ObjectExpression(obj)
+        if isinstance(collection, str):
+            collection = CollectionExpression(collection)
+        self.options = options
+        self.key = key
+        self.obj = obj
+        self.collection = collection
+
+    def compile(self, *args, **kwargs):
+        compiled = f"{self._keyword} {self.obj.compile(self.query_ref)} IN {self.collection.compile(self.query_ref)}"
+        if self.options:
+            options_compile = self.options.compile()
+            compiled += options_compile and f"OPTIONS {options_compile}"
+        return compiled
+
+    def __repr__(self):
+        _repr = f"{self._keyword} {repr(self.obj)} IN {repr(self.collection)}"
+        if self.options:
+            options_compile = self.options.compile()
+            _repr += options_compile and f"OPTIONS {options_compile}"
+        return _repr
+
+
+class UpdateOperation(BaseChangeOperation):
+    _keyword = "UPDATE"
+
     def __init__(
         self,
         key: Union[str, dict, ObjectExpression],
@@ -397,34 +460,12 @@ class UpdateOperation(Operation):
         options: Optional[UpdateOptions],
         query_ref,
     ):
-        super().__init__(query_ref=query_ref)
-        if isinstance(key, dict):
-            key = ObjectExpression(key)
-        if isinstance(obj, dict):
-            obj = ObjectExpression(obj)
-        if isinstance(collection, str):
-            collection = CollectionExpression(collection)
-        self.options = options
-        self.key = key
-        self.obj = obj
-        self.collection = collection
-
-    def compile(self, *args, **kwargs):
-        compiled = f"UPDATE {self.obj.compile(self.query_ref)} IN {self.collection.compile(self.query_ref)}"
-        if self.options:
-            options_compile = self.options.compile()
-            compiled += options_compile and f"OPTIONS {options_compile}"
-        return compiled
-
-    def __repr__(self):
-        _repr = f"UPDATE {repr(self.obj)} IN {repr(self.collection)}"
-        if self.options:
-            options_compile = self.options.compile()
-            _repr += options_compile and f"OPTIONS {options_compile}"
-        return _repr
+        super().__init__(key, obj, collection, options=options, query_ref=query_ref)
 
 
-class ReplaceOperation(Operation):
+class ReplaceOperation(BaseChangeOperation):
+    _keyword = "REPLACE"
+
     def __init__(
         self,
         key: Union[str, dict, ObjectExpression],
@@ -434,31 +475,7 @@ class ReplaceOperation(Operation):
         options: Optional[ReplaceOptions],
         query_ref,
     ):
-        super().__init__(query_ref=query_ref)
-        if isinstance(key, dict):
-            key = ObjectExpression(key)
-        if isinstance(obj, dict):
-            obj = ObjectExpression(obj)
-        if isinstance(collection, str):
-            collection = CollectionExpression(collection)
-        self.options = options
-        self.key = key
-        self.obj = obj
-        self.collection = collection
-
-    def compile(self, *args, **kwargs):
-        compiled = f"REPLACE {self.obj.compile(self.query_ref)} IN {self.collection.compile(self.query_ref)}"
-        if self.options:
-            options_compile = self.options.compile()
-            compiled += options_compile and f"OPTIONS {options_compile}"
-        return compiled
-
-    def __repr__(self):
-        _repr = f"REPLACE {repr(self.obj)} IN {repr(self.collection)}"
-        if self.options:
-            options_compile = self.options.compile()
-            _repr += options_compile and f"OPTIONS {options_compile}"
-        return _repr
+        super().__init__(key, obj, collection, options=options, query_ref=query_ref)
 
 
 class UpsertOperation(Operation):
@@ -467,9 +484,10 @@ class UpsertOperation(Operation):
         self,
         query_ref: "AQLQuery",
         filter_: Union[ObjectExpression, dict],
-        insert: Union[ObjectExpression, dict],
-        update: Union[ObjectExpression, dict],
         collection: Union[CollectionExpression, str],
+        insert: Union[ObjectExpression, dict],
+        *,
+        update: Union[ObjectExpression, dict],
         options: Optional[UpsertOptions] = None,
     ):
         ...
@@ -479,9 +497,10 @@ class UpsertOperation(Operation):
         self,
         query_ref: "AQLQuery",
         filter_: Union[ObjectExpression, dict],
-        insert: Union[ObjectExpression, dict],
-        replace: Union[ObjectExpression, dict],
         collection: Union[CollectionExpression, str],
+        insert: Union[ObjectExpression, dict],
+        *,
+        replace: Union[ObjectExpression, dict],
         options: Optional[UpsertOptions] = None,
     ):
         ...
@@ -492,6 +511,7 @@ class UpsertOperation(Operation):
         filter_: Union[ObjectExpression, dict],
         collection: Union[CollectionExpression, str],
         insert: Union[ObjectExpression, dict],
+        *,
         update: Optional[Union[ObjectExpression, dict]] = None,
         replace: Optional[Union[ObjectExpression, dict]] = None,
         options: Optional[UpsertOptions] = None,
@@ -583,24 +603,20 @@ class CollectOperation(Operation):
         if aggregate and not isinstance(aggregate, Sequence):
             aggregate = [aggregate]
 
-        for param in [collect or [], aggregate or []]:
+        params: list[Any] = [collect or [], aggregate or []]
+        for param in params:
             for i, assignment in enumerate(param):
                 if isinstance(assignment, tuple):
-                    collect[i] = AssignmentExpression(assignment[0], assignment[1])
-                if assignment.variable.var_name is NotSet:
-                    self.query_ref.__dynamic_vars__.append(assignment.variable)
-                else:
+                    param[i] = AssignmentExpression(assignment[0], assignment[1])
+                if assignment.variable.var_name:
                     self.query_ref.__used_vars__.add(assignment.variable.var_name)
+
         for param in [into or [], with_count_into or []]:
             if isinstance(param, VariableExpression):
-                if param.var_name is NotSet:
-                    self.query_ref.__dynamic_vars__.append(param)
-                else:
+                if param.var_name:
                     self.query_ref.__used_vars__.add(param.var_name)
             elif isinstance(param, AssignmentExpression):
-                if into.variable.var_name is NotSet:
-                    self.query_ref.__dynamic_vars__.append(param.variable)
-                else:
+                if param.variable.var_name:
                     self.query_ref.__used_vars__.add(param.variable.var_name)
 
                 if isinstance(param.expression, ObjectExpression):
@@ -644,12 +660,8 @@ class WindowOperation(Operation):
         # TODO
         pass
 
-    ...
-
 
 class WithOperation(Operation):
     def compile(self, *args, **kwargs):
         # TODO
         pass
-
-    ...

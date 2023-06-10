@@ -1,24 +1,18 @@
+import sys
 from typing import Optional, Type, Union, overload
 
-from pydantic import BaseModel
+from pydango.orm.types import ArangoModel
 
-from pydango.orm.proxy import LazyProxy
-from pydango.query.functions import FunctionExpression
-from pydango.query.options import (
-    RemoveOptions,
-    ReplaceOptions,
-    UpdateOptions,
-    UpsertOptions,
-)
-
-try:
+if sys.version_info >= (3, 10):
     from typing import Self
-except ImportError:
+else:
     from typing_extensions import Self
 
+from pydantic import BaseModel
 from pydantic.utils import lenient_issubclass
 
 from pydango.orm.models import BaseArangoModel
+from pydango.orm.proxy import LazyProxy
 from pydango.orm.utils import Aliased
 from pydango.query.expressions import (
     BinaryLogicalExpression,
@@ -33,6 +27,12 @@ from pydango.query.expressions import (
     VariableExpression,
 )
 from pydango.query.operations import ForParams, SortParams
+from pydango.query.options import (
+    RemoveOptions,
+    ReplaceOptions,
+    UpdateOptions,
+    UpsertOptions,
+)
 from pydango.query.query import AQLQuery
 
 ORMForParams = Union[ForParams, Type[BaseArangoModel], Aliased[Type[BaseArangoModel]]]
@@ -85,7 +85,7 @@ class ORMQuery(AQLQuery):
             collection_expression = CollectionExpression(collection_or_variable.Collection.name)
             super().for_(collection_expression, in_)
             self.orm_bound_vars[collection_or_variable] = collection_expression.iterator
-            return self
+
         elif isinstance(collection_or_variable, Aliased):
             if in_ is not None:
                 raise AssertionError(f"you should not pass in_ when using {collection_or_variable.__name__}")
@@ -94,16 +94,18 @@ class ORMQuery(AQLQuery):
             )
 
             self.orm_bound_vars[collection_or_variable] = collection_expression.iterator
-            return super().for_(collection_expression, in_)
+            super().for_(collection_expression, in_)
+
         elif isinstance(in_, ORMQuery):
             self.orm_bound_vars.update(in_.orm_bound_vars)
-            return super().for_(collection_or_variable, in_)
+            super().for_(collection_or_variable, in_)
 
         elif isinstance(in_, LazyProxy):
-            # if isinstance()
-            return super().for_(collection_or_variable, in_.dict(by_alias=True))
+            super().for_(collection_or_variable, in_.dict(by_alias=True))
+        else:
+            super().for_(collection_or_variable, in_)
 
-        return super().for_(collection_or_variable, in_)
+        return self
 
     def filter(self, condition: Union[ConditionExpression, BinaryLogicalExpression]) -> Self:
         walk_and_replace(condition, self)
@@ -112,13 +114,7 @@ class ORMQuery(AQLQuery):
 
     def sort(self, *sort_list: SortParams) -> Self:
         for i in range(len(sort_list)):
-            # if isinstance(sort_list[i].field.parent, Aliased):
             sort_list[i].field.parent = self.orm_bound_vars[sort_list[i].field.parent]
-            # if lenient_issubclass(sort_list[i].field.parent, BaseArangoModel):
-            #     sort_list[i].field.parent = self.orm_bound_vars[sort_list[i].field.parent]
-        # for i, s in enumerate(sort_list):
-        #     a.append(self.orm_bound_vars[i])
-
         super().sort(*sort_list)
         return self
 
@@ -135,7 +131,7 @@ class ORMQuery(AQLQuery):
     def insert(
         self,
         doc: Union[dict, ObjectExpression, BaseArangoModel, IteratorExpression],
-        collection: Union[str, CollectionExpression] = None,
+        collection: Optional[Union[str, CollectionExpression]] = None,
     ) -> Self:
         if isinstance(doc, (BaseArangoModel, LazyProxy)):
             collection = doc.Collection.name
@@ -143,7 +139,11 @@ class ORMQuery(AQLQuery):
         return super().insert(doc, collection)
 
     @overload
-    def remove(self, model):
+    def remove(self, expression: ArangoModel, *, options: Optional[RemoveOptions]):  # type: ignore[override]
+        ...
+
+    @overload
+    def remove(self, *args, **kwargs):
         ...
 
     def remove(
@@ -177,7 +177,7 @@ class ORMQuery(AQLQuery):
         return self
 
     @overload
-    def replace(self, key: BaseArangoModel, *, options: Optional[ReplaceOptions] = None) -> Self:
+    def replace(self, key, doc: BaseArangoModel, *, options: Optional[ReplaceOptions] = None, **kwargs) -> Self:
         ...
 
     @overload
@@ -192,7 +192,7 @@ class ORMQuery(AQLQuery):
             doc = doc.dict()
         return super().replace(key, doc, coll, options=options)
 
-    @overload
+    @overload  # type: ignore[override]
     def upsert(
         self,
         filter_: BaseArangoModel,
@@ -201,6 +201,7 @@ class ORMQuery(AQLQuery):
         update: Optional[Union[dict, BaseModel, ObjectExpression]] = None,
         replace: Optional[Union[dict, BaseModel, ObjectExpression]] = None,
         options: Optional[UpsertOptions] = None,
+        **kwargs,
     ) -> Self:
         ...
 
@@ -221,7 +222,7 @@ class ORMQuery(AQLQuery):
         self,
         filter_: Union[BaseArangoModel, dict],
         insert: Union[dict, BaseModel, ObjectExpression],
-        coll: Union[str, CollectionExpression] = None,
+        coll: Optional[Union[str, CollectionExpression]] = None,
         *,
         update: Optional[Union[dict, BaseModel, ObjectExpression]] = None,
         replace: Optional[Union[dict, BaseModel, ObjectExpression]] = None,
@@ -241,9 +242,7 @@ class ORMQuery(AQLQuery):
         super().upsert(filter_, insert, coll, update=update, replace=replace, options=options)
         return self
 
-    def return_(
-        self, return_expr: Union[Type[BaseArangoModel], ReturnableMixin, Aliased, dict, FunctionExpression]
-    ) -> Self:
+    def return_(self, return_expr: Union[Type[BaseArangoModel], Aliased, ReturnableMixin, dict]) -> Self:
         if lenient_issubclass(return_expr, (BaseArangoModel, Aliased)):
             return_expr = self.orm_bound_vars[return_expr]
         elif isinstance(return_expr, Aliased):
@@ -254,5 +253,8 @@ class ORMQuery(AQLQuery):
         return self
 
 
-def for_(collection_or_variable: ORMForParams, in_: Optional[Union[IterableExpression, list]] = None) -> ORMQuery:
+def for_(
+    collection_or_variable: ORMForParams,
+    in_: Optional[Union[VariableExpression, list[VariableExpression], list]] = None,
+) -> ORMQuery:
     return ORMQuery().for_(collection_or_variable, in_)

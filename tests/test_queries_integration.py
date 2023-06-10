@@ -6,12 +6,7 @@ from aioarango.database import Database
 
 from pydango.connection.utils import deplete_cursor, iterate_cursor
 from tests.data import DATA
-from tests.queries import (  # multiple_collections_query,
-    multiple_filters_query,
-    projection_complex_query,
-    simple_query,
-    sort_filter_query,
-)
+from tests.queries import multiple_filters_query, projection_complex_query, simple_query
 
 
 @pytest.mark.asyncio

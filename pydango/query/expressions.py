@@ -1,125 +1,65 @@
 import datetime
-from abc import ABC
+import sys
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Type, Union
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Type, Union, cast
 
-try:
-    from typing import TypeAlias  # type: ignore[attr-defined]
-except ImportError:
+from pydango.query.consts import DYNAMIC_ALIAS
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
     from typing_extensions import TypeAlias
-
-from pydango.query.utils import Compilable, SortDirection
+from pydango.query.utils import SortDirection
 
 if TYPE_CHECKING:
     from pydango.query.query import AQLQuery
 
 
-class _NotSet:
-    _name__ = "DynamicAlias"
-
-    def __repr__(self):
-        return f"{self._name__}:{id(self)}"
-
-    def __str__(self):
-        return self._name__
-
-
-NotSetCls = _NotSet
-NotSet = NotSetCls()
-
-
-class ReturnableMixin(Compilable, ABC):
+class ReturnableMixin(ABC):
     """
     Base class for returnable expressions
     """
 
 
-class Expression(Compilable):
-    # def __add__(self, other: Union["Expression", int, float, str]) -> "ArithmeticExpression":
-    # return ArithmeticExpression(self, "+", to_expression(other))
-    ##
-    # def __sub__(self, other: Union["Expression", int, float, str]) -> "ArithmeticExpression":
-    # return ArithmeticExpression(self, "-", to_expression(other))
-    ##
-    # def __mul__(self, other: Union["Expression", int, float, str]) -> "ArithmeticExpression":
-    # return ArithmeticExpression(self, "*", to_expression(other))
-    ##
-    # def __truediv__(self, other: Union["Expression", int, float, str]) -> "ArithmeticExpression":
-    # return ArithmeticExpression(self, "/", to_expression(other))
-    ##
-    # def __floordiv__(self, other: Union["Expression", int, float, str]) -> "ArithmeticExpression":
-    # return ArithmeticExpression(self, "//", to_expression(other))
-    ##
-    # def __mod__(self, other: Union["Expression", int, float, str]) -> "ArithmeticExpression":
-    # return ArithmeticExpression(self, "%", to_expression(other))
-    ##
-    # def __lt__(self, other: Union["Expression", int, float, str]) -> "LogicalExpression":
-    # return LogicalExpression(self, "<", to_expression(other))
-    ##
-    # def __le__(self, other: Union["Expression", int, float, str]) -> "LogicalExpression":
-    # return LogicalExpression(self, "<=", to_expression(other))
-    ##
-    # def __eq__(self, other: Union["Expression", int, float, str, bool, None]) -> "LogicalExpression":
-    # return LogicalExpression(self, "==", to_expression(other))
-    ##
-    # def __ne__(self, other: Union["Expression", int, float, str, bool, None]) -> "LogicalExpression":
-    # return LogicalExpression(self, "!=", to_expression(other))
-    ##
-    # def __gt__(self, other: Union["Expression", int, float, str]) -> "LogicalExpression":
-    # return LogicalExpression(self, ">", to_expression(other))
-    ##
-    # def __ge__(self, other: Union["Expression", int, float, str]) -> "LogicalExpression":
-    # return LogicalExpression(self, ">=", to_expression(other))
-    ##
-    # def __and__(self, other: Union["Expression", int, float, str]) -> "LogicalExpression":
-    # return LogicalExpression(self, "&&", to_expression(other))
-    ##
-    # def __or__(self, other: Union["Expression", int, float, str]) -> "LogicalExpression":
-    # return LogicalExpression(self, "||", to_expression(other))
-    ##
-    # def __invert__(self) -> "UnaryExpression":
-    # return UnaryExpression("NOT", self)
-    ##
-    # def __neg__(self) -> "UnaryExpression":
-    # return UnaryExpression("-", self)
-    ##
-    # def __pos__(self) -> "UnaryExpression":
-    # return UnaryExpression("+", self)
-
-    # def __str__(self) -> str:
-    #     return self.compile()
-
+class Expression(ABC):
+    @abstractmethod
     def compile(self, query_ref: "AQLQuery") -> str:
         raise NotImplementedError
 
-    def __deepcopy__(self, memodict={}):
+    def __deepcopy__(self, memodict=None):
         return self
 
 
-class LiteralExpression(Expression):
+class BindableExpression(Expression):
     def __init__(self, value: Any) -> None:
         self.value = value
 
     def compile(self, query_ref: "AQLQuery") -> str:
-        return query_ref.bind_parameter(self)
+        # Mypy: Argument 1 to "bind_parameter" of "AQLQuery"
+        # has incompatible type "expressions.LiteralExpression";
+        # expected "Union[pydango.query.expressions.LiteralExpression, FigurativeExpression]"  [arg-type]
+        return query_ref.bind_parameter(self)  # type: ignore[arg-type]
 
+
+class LiteralExpression(BindableExpression):
     def __repr__(self):
         return "?"
 
 
 class VariableExpression(Expression, ReturnableMixin):
     def __init__(self, var_name: Optional[str] = None):
-        self.var_name = var_name or NotSet
+        self.var_name = var_name
 
     def compile(self, query_ref: "AQLQuery") -> str:
-        if isinstance(self.var_name, _NotSet):
+        if self.var_name is None:
             self.var_name = query_ref.bind_variable()
 
         return self.var_name
 
     def __repr__(self):
-        return str(self.var_name)
+        return self.var_name or DYNAMIC_ALIAS
 
     def __getattr__(self, item):
         if item in self.__dict__:
@@ -129,15 +69,13 @@ class VariableExpression(Expression, ReturnableMixin):
 
     def __getitem__(self, item):
         return FieldExpression(item, self)
-        # self.subs = item
-        # return self
 
 
 class ModificationVariable(VariableExpression, ABC):
-    _keyword = None
+    _keyword: str
 
     def compile(self, query_ref: "AQLQuery") -> str:
-        if not query_ref._is_modification_query:
+        if not query_ref.__is_modification_query__:
             raise AssertionError(f"no modification operation defined to use {self._keyword} keyword")
 
         return self._keyword
@@ -166,11 +104,13 @@ class FieldExpression(Expression, ReturnableMixin):
     Expression class for field access of objects and documents
     """
 
-    def __init__(self, field: Union[str, Expression], parent: VariableExpression = None):
+    def __init__(self, field: Union[str, Expression], parent: Optional[VariableExpression] = None):
         self.parent = parent
         self.field = field
 
     def compile(self, query_ref: "AQLQuery") -> str:
+        if self.parent is None:
+            raise ValueError("field parent must be populated")
         if isinstance(self.field, Expression):
             return f"{self.parent.compile(query_ref)}[{self.field.compile(query_ref)}]"
         if isinstance(self.field, int):
@@ -190,40 +130,40 @@ class FieldExpression(Expression, ReturnableMixin):
     def __neg__(self) -> "SortExpression":
         return SortExpression(self, SortDirection.DESC)
 
-    def __eq__(self, other) -> "ConditionExpression":
-        return _set_operator(self, "==", other, ConditionExpression)
+    def __eq__(self, other) -> "ConditionExpression":  # type: ignore[override]
+        return cast(ConditionExpression, _set_operator(self, "==", other, ConditionExpression))
 
     def __ge__(self, other) -> "ConditionExpression":
-        return _set_operator(self, ">=", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, ">=", other, ConditionExpression))
 
     def __gt__(self, other) -> "ConditionExpression":
-        return _set_operator(self, ">", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, ">", other, ConditionExpression))
 
     def __le__(self, other) -> "ConditionExpression":
-        return _set_operator(self, "<=", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, "<=", other, ConditionExpression))
 
     def __lt__(self, other) -> "ConditionExpression":
-        return _set_operator(self, "<", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, "<", other, ConditionExpression))
 
     def __mul__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "*", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "*", other, ArithmeticExpression))
 
     def __sub__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "-", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "-", other, ArithmeticExpression))
 
     def __add__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "+", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "+", other, ArithmeticExpression))
 
     def __truediv__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "/", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "/", other, ArithmeticExpression))
 
     def __mod__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "%", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "%", other, ArithmeticExpression))
 
 
 class IteratorExpression(VariableExpression):
     def __repr__(self):
-        return f"<Iterator: {str(self.var_name)} {id(self)}>"
+        return f"<Iterator: {str(self.var_name or DYNAMIC_ALIAS)} {id(self)}>"
 
     def __getattr__(self, item):
         if item in self.__dict__:
@@ -235,43 +175,43 @@ class IteratorExpression(VariableExpression):
         return _set_operator(self, ">", other, ConditionExpression)
 
     def __ge__(self, other) -> "ConditionExpression":
-        return _set_operator(self, ">=", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, ">=", other, ConditionExpression))
 
     def __lt__(self, other):
         return _set_operator(self, "<", other, ConditionExpression)
 
     def __le__(self, other) -> "ConditionExpression":
-        return _set_operator(self, "<=", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, "<=", other, ConditionExpression))
 
     def __eq__(self, other):
-        return _set_operator(self, "==", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, "==", other, ConditionExpression))
 
     def __ne__(self, other):
-        return _set_operator(self, "!=", other, ConditionExpression)
+        return cast(ConditionExpression, _set_operator(self, "!=", other, ConditionExpression))
 
     def __mul__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "*", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "*", other, ArithmeticExpression))
 
     def __sub__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "-", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "-", other, ArithmeticExpression))
 
     def __add__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "+", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "+", other, ArithmeticExpression))
 
     def __truediv__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "/", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "/", other, ArithmeticExpression))
 
     def __mod__(self, other) -> "ArithmeticExpression":
-        return _set_operator(self, "%", other, ArithmeticExpression)
+        return cast(ArithmeticExpression, _set_operator(self, "%", other, ArithmeticExpression))
 
 
-class IterableExpression(Expression, ABC):
+class IterableExpression(Expression, ReturnableMixin, ABC):
     """
     Base class for iterable expressions
     """
 
     def __init__(self, iterator: Optional[Union[IteratorExpression, str]] = None):
-        if iterator is None or iterator is NotSet:
+        if iterator is None:
             self.iterator = IteratorExpression()
         elif isinstance(iterator, str):
             self.iterator = IteratorExpression(iterator)
@@ -288,7 +228,8 @@ class AssignmentExpression(Expression):
     def compile(self, query_ref: "AQLQuery"):
         expression_compile = self.expression.compile(query_ref)
         if self._is_query:
-            self.expression._parent = query_ref
+            setattr(self.expression, "_parent", query_ref)
+            # self.expression._parent = query_ref
             expression_compile = f"({expression_compile})"
         return f"{self.variable.compile(query_ref)} = {expression_compile}"
 
@@ -308,8 +249,8 @@ class UnaryExpression(Expression, ReturnableMixin):
         self.operand = operand
         self.operator = operator
 
-    def compile(self) -> str:
-        return f"{self.operator}({self.operand.compile()})"
+    def compile(self, query_ref: "AQLQuery") -> str:
+        return f"{self.operator}({self.operand.compile(query_ref)})"
 
 
 class BinaryExpression(Expression, ReturnableMixin):
@@ -429,7 +370,7 @@ class ReturnableIterableExpression(IterableExpression, ReturnableMixin, ABC):
 
 
 class QueryExpression(Expression, ABC):
-    _parent: "QueryExpression" = None
+    _parent: Optional["QueryExpression"] = None
     sep = " "
 
 
@@ -444,8 +385,8 @@ class SubQueryExpression(Expression, ReturnableMixin):
 
     def compile(self, query_ref) -> str:
         if self.query.sep == "\n":
-            return f"(\t{self.query.compile()})"
-        return f"({self.query.compile()})"
+            return f"(\t{self.query.compile(query_ref)})"
+        return f"({self.query.compile(query_ref)})"
 
 
 class ScalarSubQuery(SubQueryExpression):
@@ -453,21 +394,16 @@ class ScalarSubQuery(SubQueryExpression):
 
 
 class VectorSubQueryExpression(SubQueryExpression, IterableExpression):
-    def __init__(self, query: "AQLQuery"):
+    def __init__(self, query: "QueryExpression"):
         super().__init__(query)
-        super(SubQueryExpression, VectorSubQueryExpression).__init__(IteratorExpression())
+        super(SubQueryExpression, self).__init__(IteratorExpression())
+
         if self.query.sep == "\n":
             self.query.sep = f"{self.query.sep}\t"
 
 
 class CollectionExpression(IterableExpression):
-    """
-    class for marking array expressions which can be used:
-     in FOR:
-      (FOR {var} IN CollectionExpression)
-    """
-
-    def __init__(self, collection_name: str, iterator: Union[str, IteratorExpression] = None):
+    def __init__(self, collection_name: str, iterator: Optional[Union[str, IteratorExpression]] = None):
         super().__init__(iterator)
         self.collection_name = collection_name
 
@@ -484,34 +420,30 @@ class CollectionExpression(IterableExpression):
         return f"`{self.collection_name}`"
 
 
-class FigurativeExpression(Expression, ReturnableMixin, ABC):
-    def __init__(self, value: Any) -> None:
-        self.value = value
-
-    def compile(self, query_ref: "AQLQuery") -> str:
-        return query_ref.bind_parameter(self)
+class FigurativeExpression(BindableExpression, ReturnableMixin, ABC):
+    pass
 
 
-ListValues: TypeAlias = tuple[
-    Union[
-        QueryExpression,
-        LiteralExpression,
-        FigurativeExpression,
-        Mapping,
-        Sequence,
-        int,
-        float,
-        str,
-        bool,
+ListItems = Union[QueryExpression, LiteralExpression, FigurativeExpression, Mapping, Sequence, int, float, str, bool]
+ListValues: TypeAlias = Union[
+    tuple[
+        ListItems,
+        ...,
     ],
-    ...,
+    list[ListItems],
 ]
 
 
-class ListExpression(FigurativeExpression, IterableExpression):
-    def __init__(self, value: ListValues, iterator: Union[IteratorExpression, str] = None):
+class ListExpression(
+    BindableExpression,
+    IterableExpression,
+):
+    def __init__(self, value: ListValues, iterator: Optional[Union[IteratorExpression, str]] = None):
+        if isinstance(value, list):
+            value = tuple(value)
+
         super().__init__(value)
-        super(FigurativeExpression, self).__init__(iterator)
+        super(BindableExpression, self).__init__(iterator)
         self._copy: list[Expression] = []
         self._need_compile = False
         for i in self.value:
@@ -529,7 +461,7 @@ class ListExpression(FigurativeExpression, IterableExpression):
             elif isinstance(i, dict):
                 expression = ObjectExpression(i)
                 self._copy.append(expression)
-                self._need_compile = not expression._all_literals or self._need_compile
+                self._need_compile = not expression.__all_literals__ or self._need_compile
             else:
                 self._copy.append(LiteralExpression(i))
 
@@ -538,7 +470,7 @@ class ListExpression(FigurativeExpression, IterableExpression):
             result = []
             for i in self._copy:
                 if isinstance(i, SubQueryExpression):
-                    i.query._parent = query_ref
+                    i.query._parent = cast(QueryExpression, query_ref)
                 result.append(i.compile(query_ref))
             return f'[{", ".join(result)}]'
 
@@ -566,29 +498,29 @@ ObjectParams: TypeAlias = Mapping[
 ]
 
 
-class ObjectExpression(FigurativeExpression):
+class ObjectExpression(BindableExpression, ReturnableMixin):
     def __init__(self, value: ObjectParams, parent: Optional[Union[VariableExpression, CollectionExpression]] = None):
         super().__init__(value)
         self.parent = parent
         self._bind = {}
-        self._all_literals = True
+        self.__all_literals__ = True
         if isinstance(value, dict):
             self.value = deepcopy(value)
             for field, mapped_field in self.value.items():
                 if isinstance(mapped_field, list):
                     self.value[field] = ListExpression(mapped_field)
-                    self._all_literals = False
+                    self.__all_literals__ = False
                 elif isinstance(mapped_field, dict):
                     self.value[field] = ObjectExpression(mapped_field, self.parent)
-                    self._all_literals = False
+                    self.__all_literals__ = False
 
                 elif isinstance(mapped_field, QueryExpression):
                     subquery = SubQueryExpression(mapped_field)
                     self.value[field] = subquery
                     self._bind[mapped_field] = subquery
-                    self._all_literals = False
+                    self.__all_literals__ = False
                 elif isinstance(mapped_field, (VariableExpression, FieldExpression)):
-                    self._all_literals = False
+                    self.__all_literals__ = False
                 elif (
                     isinstance(mapped_field, (int, float, str, bool, datetime.datetime, datetime.date))
                     or mapped_field is None
@@ -596,16 +528,11 @@ class ObjectExpression(FigurativeExpression):
                     self.value[field] = LiteralExpression(mapped_field)
 
     def compile(self, query_ref: "AQLQuery") -> str:
-        # if self._all_literals:
-        #     return super().compile(query_ref)
         for bind in self._bind.values():
-            bind.query._parent = query_ref
+            bind.query._parent = cast(QueryExpression, query_ref)
 
         pairs = []
 
-        # if isinstance(self.value, list):
-        #     for field in self.value:
-        #         pairs.append(f"{field}: {self.parent.compile(query_ref)}.{field}")
         if isinstance(self.value, dict):
             for field, mapped_field in self.value.items():
                 pairs.append(f"{field}: {mapped_field.compile(query_ref)}")
@@ -623,21 +550,21 @@ class ObjectExpression(FigurativeExpression):
         return f"{{{', '.join(pairs)}}}"
 
 
-class BaseAQLVariableExpressionMixin:
-    ...
+# class BaseAQLVariableExpressionMixin:
+#     ...
 
 
-class AQLVariableExpression(BaseAQLVariableExpressionMixin):
-    def __init__(self, var_name: str):
-        super().__init__(var_name)
+# class AQLVariableExpression(BaseAQLVariableExpressionMixin):
+#     def __init__(self, var_name: str):
+#         super().__init__(var_name)
+#
+#     def compile(self, *args, **kwargs) -> str:
+#         return f"@{super().compile(*args, **kwargs)}"
 
-    def compile(self, *args, **kwargs) -> str:
-        return f"@{super().compile(*args, **kwargs)}"
 
-
-class AQLCollectionVariableExpression(BaseAQLVariableExpressionMixin):
-    def compile(self, *args, **kwargs) -> str:
-        return f"@@{super().compile(*args, **kwargs)}"
+# class AQLCollectionVariableExpression(BaseAQLVariableExpressionMixin):
+#     def compile(self, *args, **kwargs) -> str:
+#         return f"@@{super().compile(*args, **kwargs)}"
 
 
 def _set_operator(self, operator, other, cls: Type[BinaryExpression]) -> BinaryExpression:
@@ -647,12 +574,15 @@ def _set_operator(self, operator, other, cls: Type[BinaryExpression]) -> BinaryE
 
 
 class SortExpression(Expression):
-    def __init__(self, field: FieldExpression, direction: SortDirection):
+    def __init__(self, field: FieldExpression, direction: Optional[SortDirection] = None):
         self.field = field
         self.direction = direction
 
     def compile(self, query_ref: "AQLQuery") -> str:
-        return f"{self.field.compile(query_ref)} {self.direction.value}"
+        compiled = f"{self.field.compile(query_ref)}"
+        if self.direction:
+            compiled += f" {self.direction.value}"
+        return compiled
 
     def __repr__(self):
         if hasattr(self, "field") and hasattr(self, "direction"):

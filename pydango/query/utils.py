@@ -1,10 +1,9 @@
-# utils.py
 from enum import Enum
-from typing import Protocol, TypeVar
+from typing import Protocol, TypeVar, Union
 
 
 class Compilable(Protocol):
-    def compile(self, *args, **kwargs) -> str:
+    def compile(self, *args, **kwargs) -> Union[str, None]:
         ...
 
 

@@ -1,4 +1,4 @@
-DATA = {
+DATA: dict[str, list] = {
     "users": [
         {"_key": "1", "name": "Jane Smith", "age": 25, "gender": "Female"},
         {"_key": "2", "name": "Emily Davis", "age": 28, "gender": "Female"},

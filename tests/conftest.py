@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sys
 from collections import defaultdict
+from typing import AsyncGenerator, TypeVar
 
 import pytest
 import pytest_asyncio
@@ -69,15 +70,20 @@ def add_log(caplog):
         yield
 
 
+T = TypeVar("T")
+
+AsyncFixture = AsyncGenerator[T, None]
+
+
 @pytest_asyncio.fixture(scope="session")
-async def client() -> ArangoClient:
+async def client() -> AsyncFixture[ArangoClient]:
     client = ArangoClient()
     yield client
     await client.close()
 
 
 @pytest_asyncio.fixture(scope="session")
-async def database(client: ArangoClient) -> Database:
+async def database(client: ArangoClient) -> AsyncFixture[Database]:
     db = await get_or_create_db(client, "pydango")
     yield db
     # await (await client.db("_system")).delete_database("pydango")

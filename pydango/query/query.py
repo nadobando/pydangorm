@@ -1,18 +1,20 @@
 import json
 import logging
 import sys
-from typing import TYPE_CHECKING, Optional, Union, overload
-
-from pydango.orm.encoders import jsonable_encoder
+from typing import Dict, List, Optional, Union, overload
 
 if sys.version_info >= (3, 10):
-    from typing import Self
+    from typing import Self, TypeAlias
 else:
-    from typing_extensions import Self
+    from typing_extensions import Self, TypeAlias
 
 from aioarango.database import Database
 
+from pydango.orm.encoders import jsonable_encoder
+
+# if TYPE_CHECKING:
 from pydango.query.expressions import (
+    BindableExpression,
     CollectionExpression,
     ConditionExpression,
     Expression,
@@ -20,6 +22,7 @@ from pydango.query.expressions import (
     In,
     IterableExpression,
     IteratorExpression,
+    LiteralExpression,
     ObjectExpression,
     QueryExpression,
     ReturnableMixin,
@@ -56,28 +59,27 @@ from pydango.query.options import (
     UpdateOptions,
 )
 
-if TYPE_CHECKING:
-    from pydango.query.expressions import LiteralExpression
-
 logger = logging.getLogger(__name__)
+
+JsonType: TypeAlias = Union[None, int, str, bool, List["JsonType"], Dict[str, "JsonType"]]
 
 
 class AQLQuery(QueryExpression):
     sep = " "
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional["AQLQuery"] = None):
         super().__init__()
         self.compiled_vars = None
-        self.bind_vars = {}
+        self.bind_vars: dict[str, Union[bool, str, int, float, dict, list]] = {}
         self.__dynamic_vars__: list[VariableExpression] = []
         self.__used_vars__ = set()
         self._parameters = {}
         self._var_counter = 0
         self._param_counter = 0
-        self._parent: AQLQuery = parent
+        self._parent = parent
         self._ops: list[Operation] = []
         self._compiled = None
-        self._is_modification_query = False
+        self.__is_modification_query__ = False
 
     def __str__(self):
         if self._compiled:
@@ -108,8 +110,8 @@ class AQLQuery(QueryExpression):
     def for_(
         self,
         collection_or_variable: ForParams,
-        in_: Optional[IterableExpression] = None,
-    ) -> "AQLQuery":
+        in_: Optional[Union[IterableExpression, "AQLQuery"]] = None,
+    ) -> Self:
         if self == in_:
             raise ValueError("is not possible to loop over the same query")
 
@@ -117,7 +119,7 @@ class AQLQuery(QueryExpression):
             in_._parent = self
             in_ = VectorSubQueryExpression(in_)
 
-        self._ops.append(ForOperation(collection_or_variable, in_, query_ref=self))
+        self._ops.append(ForOperation(collection_or_variable, in_, query_ref=self))  # type: ignore[arg-type]
         return self
 
     def traverse(
@@ -140,7 +142,7 @@ class AQLQuery(QueryExpression):
                 start=start,
                 depth=depth,
                 direction=direction,
-                query_ref=self,
+                query_ref=self,  # type: ignore[arg-type]
             )
         )
         return self
@@ -150,11 +152,11 @@ class AQLQuery(QueryExpression):
             condition.right._parent = self
             condition.right = VectorSubQueryExpression(condition.right)
 
-        self._ops.append(FilterOperation(condition, query_ref=self))
+        self._ops.append(FilterOperation(condition, query_ref=self))  # type: ignore[arg-type]
         return self
 
     def sort(self, *sort_list: SortParams) -> "AQLQuery":
-        self._ops.append(SortOperation(*sort_list, query_ref=self))
+        self._ops.append(SortOperation(*sort_list, query_ref=self))  # type: ignore[arg-type]
         return self
 
     @overload
@@ -166,15 +168,15 @@ class AQLQuery(QueryExpression):
         ...
 
     def let(
-        self, variable: Union[VariableExpression, str], expression: Optional[Expression]
+        self, variable: Union[VariableExpression, str], expression: Expression
     ) -> Union["AQLQuery", VariableExpression]:
-        let_operation = LetOperation(variable, expression, query_ref=self)
+        let_operation = LetOperation(variable, expression, query_ref=self)  # type: ignore[arg-type]
         self._ops.append(let_operation)
         if isinstance(variable, str):
-            return let_operation.variable
+            return let_operation.expression.variable
         return self
 
-    def return_(self, return_expr: Union[ReturnableMixin, CollectionExpression, dict]) -> Self:
+    def return_(self, return_expr: Union[ReturnableMixin, dict]) -> Self:
         if isinstance(return_expr, AQLQuery):
             return_expr._parent = self
             return_expr = SubQueryExpression(return_expr)
@@ -195,27 +197,27 @@ class AQLQuery(QueryExpression):
     def bind_variable(self) -> str:
         return self._get_var_name()
 
-    def bind_parameter(self, literal: "LiteralExpression") -> str:
+    def bind_parameter(self, parameter: BindableExpression) -> str:
         if self._parent:
-            return self._parent.bind_parameter(literal)
+            return self._parent.bind_parameter(parameter)
         is_hashable = False
         try:
-            hash(literal.value)
+            hash(parameter.value)
             is_hashable = True
-            if literal.value in self._parameters or literal.value in self.bind_vars.keys():
-                return self._parameters[literal.value]
+            if parameter.value in self._parameters or parameter.value in self.bind_vars.keys():
+                return self._parameters[parameter.value]
         except TypeError:
-            if str(literal.value) in self._parameters:
-                return self._parameters[str(literal.value)]
+            if str(parameter.value) in self._parameters:
+                return self._parameters[str(parameter.value)]
 
         var = self._get_param_var()
 
-        self.bind_vars[var[1:]] = literal.value
+        self.bind_vars[var[1:]] = parameter.value
 
         if is_hashable:
-            self._parameters[literal.value] = var
+            self._parameters[parameter.value] = var
         else:
-            self._parameters[str(literal.value)] = var
+            self._parameters[str(parameter.value)] = var
 
         return var
 
@@ -224,7 +226,7 @@ class AQLQuery(QueryExpression):
         return self
 
     def insert(self, doc: Union[dict, ObjectExpression], collection: Union[str, CollectionExpression]) -> Self:
-        self._is_modification_query = True
+        self.__is_modification_query__ = True
         self._ops.append(InsertOperation(doc, collection, self))
         return self
 
@@ -235,19 +237,19 @@ class AQLQuery(QueryExpression):
         *,
         options: Optional[RemoveOptions] = None,
     ) -> Self:
-        self._is_modification_query = True
+        self.__is_modification_query__ = True
         self._ops.append(RemoveOperation(expression, collection, options=options, query_ref=self))
         return self
 
     def update(self, key, doc, coll, *, options: Optional[UpdateOptions] = None) -> Self:
-        self._is_modification_query = True
+        self.__is_modification_query__ = True
         self._ops.append(
             UpdateOperation(key, doc, coll, query_ref=self, options=options),
         )
         return self
 
     def replace(self, key, doc, coll, *, options: Optional[ReplaceOptions] = None) -> Self:
-        self._is_modification_query = True
+        self.__is_modification_query__ = True
         self._ops.append(
             ReplaceOperation(key, doc, coll, query_ref=self, options=options),
         )
@@ -262,12 +264,19 @@ class AQLQuery(QueryExpression):
         ...
 
     def upsert(self, filter_, insert, coll, update=None, replace=None, *, options=None) -> Self:
-        self._is_modification_query = True
-        self._ops.append(
-            UpsertOperation(
-                self, filter_=filter_, insert=insert, update=update, replace=replace, collection=coll, options=options
+        self.__is_modification_query__ = True
+        if not (update or replace):
+            raise ValueError("you must pass update or replace")
+        if update:
+            upsert_operation = UpsertOperation(
+                self, filter_=filter_, insert=insert, update=update, collection=coll, options=options
             )
-        )
+        else:
+            upsert_operation = UpsertOperation(
+                self, filter_=filter_, insert=insert, replace=replace, collection=coll, options=options
+            )
+
+        self._ops.append(upsert_operation)
         return self
 
     @overload

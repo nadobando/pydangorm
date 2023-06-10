@@ -80,3 +80,18 @@ skips = ['**/test_*.py', '**/test_*.py']
 
 [tool.ruff]
 line-length=120
+
+[tool.mypy]
+#mypy_path = "stubs/"
+#explicit_package_bases = true
+exclude="""
+(
+  /(
+      backups         # exclude a few common directories in the
+    | local          # root of the project
+  )/
+)
+"""
+
+plugins = ["pydantic.mypy"]
+warn_redundant_casts = true

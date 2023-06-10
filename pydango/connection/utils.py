@@ -1,8 +1,6 @@
-from typing import TYPE_CHECKING, Type, Union, overload
+from typing import TYPE_CHECKING, Optional, Type, Union, overload
 
 import aioarango
-
-from pydango.orm.models import CollectionType
 
 if TYPE_CHECKING:
     from aioarango import ArangoClient
@@ -25,7 +23,7 @@ async def get_or_create_collection(db: "StandardDatabase", model: str, *, edge=N
 
 
 async def get_or_create_collection(
-    db: "StandardDatabase", model: Union[str, Type["BaseArangoModel"]], *, edge=None
+    db: "StandardDatabase", model: Union[str, Type["BaseArangoModel"]], *, edge: Optional[bool] = None
 ) -> "StandardCollection":
     if isinstance(model, str):
         collection_name = model
@@ -34,7 +32,7 @@ async def get_or_create_collection(
         collection: model.Collection
         collection_name = collection.name
         if edge is None:
-            edge = True if collection.type == CollectionType.EDGE else False
+            edge = True if collection.type.value == collection.type.EDGE else False
     else:
         raise AssertionError()
 

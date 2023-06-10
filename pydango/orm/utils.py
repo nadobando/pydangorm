@@ -2,13 +2,8 @@ from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
-from pydango.orm.descriptor import DocFieldDescriptor
-from pydango.query.expressions import (
-    Expression,
-    FieldExpression,
-    IteratorExpression,
-    NotSet,
-)
+from pydango.orm.fields import DocFieldDescriptor
+from pydango.query.expressions import Expression, FieldExpression, IteratorExpression
 
 if TYPE_CHECKING:
     from pydango.orm.query import ORMQuery
@@ -65,7 +60,7 @@ T = TypeVar("T")
 class Aliased(Generic[T]):
     def __init__(self, entity, alias=None):
         self.entity = entity
-        self.alias = alias or NotSet
+        self.alias = alias
 
     def __getattr__(self, item):
         # if item == "Collection":

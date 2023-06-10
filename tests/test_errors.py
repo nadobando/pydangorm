@@ -6,9 +6,9 @@ from pydango.query.query import AQLQuery
 
 def test_invalid_for_expression():
     with pytest.raises(AssertionError):
-        AQLQuery().for_(
-            "users"
-        )  # should raise TypeError since the expression should be an instance of CollectionExpression or IteratorExpression
+        # should raise TypeError since the expression should be an instance
+        # of CollectionExpression or IteratorExpression
+        AQLQuery().for_("users")
 
 
 def test_duplicate_iterator_alias():

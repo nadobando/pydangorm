@@ -41,12 +41,14 @@ class LoopOptions(Options):
         }
 
 
+# noinspection DuplicatedCode
 @dataclass
 class BaseModificationOptions(Options, ABC):
     ignore_errors: Optional[bool] = None
     wait_for_sync: Optional[bool] = None
     ignore_revs: Optional[bool] = None
     exclusive: Optional[bool] = None
+    refill_index_caches: Optional[bool] = None
 
     def __post_init__(self):
         self._map = {
@@ -58,6 +60,7 @@ class BaseModificationOptions(Options, ABC):
         }
 
 
+# noinspection DuplicatedCode
 @dataclass()
 class RemoveOptions(BaseModificationOptions):
     ignore_errors: Optional[bool] = None
@@ -98,6 +101,7 @@ class UpdateOptions(BaseModificationOptions):
         }
 
 
+# noinspection DuplicatedCode
 @dataclass()
 class ReplaceOptions(BaseModificationOptions):
     ignore_errors: Optional[bool] = None

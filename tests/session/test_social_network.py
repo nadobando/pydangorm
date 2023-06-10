@@ -18,7 +18,7 @@ class Post(VertexModel):
     content: str
     # todo: make this work
     # author: Annotated["User", BackRelation["Authorship"]]
-    comments: Annotated[Optional[List["Comment"]], Relation["PostComment"]]
+    comments: Annotated[Optional[List["Comment"]], Relation["PostComment"]] = None
 
     class Collection(VertexCollectionConfig):
         name = "posts"
@@ -100,8 +100,8 @@ authorship3 = Authorship(created_at=datetime.datetime.now())
 commentary1 = Commentary(commented_at=datetime.datetime.now())
 commentary2 = Commentary(commented_at=datetime.datetime.now())
 
-post1 = Post(title="First Post", content="This is my first post!", author=user1)
-post2 = Post(title="Second Post", content="This is my second post!", author=user2)
+post1 = Post(title="First Post", content="This is my first post!")
+post2 = Post(title="Second Post", content="This is my second post!")
 
 comment1 = Comment(text="Great post!")
 comment2 = Comment(text="I enjoyed reading this.")

@@ -1,5 +1,5 @@
 from functools import partial
-from typing import TYPE_CHECKING, Generic
+from typing import TYPE_CHECKING, Generic, Optional
 
 from pydango import NAO
 from pydango.orm.encoders import jsonable_encoder
@@ -19,7 +19,7 @@ class LazyProxy(Generic[ArangoModel], metaclass=LazyProxyMeta):
     _initialized: bool = False
     __instance__ = None
 
-    def __init__(self, instance, field, session: "PydangoSession"):
+    def __init__(self, instance, field, session: Optional["PydangoSession"]):
         self.session = session
         self._field = field
         if instance is not NAO:

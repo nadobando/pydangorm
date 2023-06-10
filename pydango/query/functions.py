@@ -1,4 +1,5 @@
 import json
+from abc import ABC
 from typing import TYPE_CHECKING, Optional, Union
 
 from pydango.query.expressions import (
@@ -8,6 +9,8 @@ from pydango.query.expressions import (
     LiteralExpression,
     ObjectExpression,
     QueryExpression,
+    ReturnableMixin,
+    VariableExpression,
 )
 
 if TYPE_CHECKING:
@@ -50,11 +53,11 @@ class BaseFunctionExpression(Expression):
         return f"{self.name}({', '.join(arguments)})"
 
 
-class FunctionExpression(BaseFunctionExpression):
-    name = None
+class FunctionExpression(BaseFunctionExpression, ReturnableMixin):
+    name: str
 
     def __init__(self, *arguments):
-        if not isinstance(self.name, str):
+        if not hasattr(self, "name") or not isinstance(self.name, str):
             raise ValueError("function name not defined")
         super().__init__(self.name, *arguments)
 
@@ -98,7 +101,6 @@ class Zip(FunctionExpression):
     name = "ZIP"
 
 
-# aggs
 class Sum(FunctionExpression):
     name = "SUM"
 
@@ -140,7 +142,7 @@ class RegExMatch(FunctionExpression):
 
 
 # arrays
-class ReturnsArray(IterableExpression):
+class ReturnsArray(IterableExpression, ABC):
     pass
 
 
@@ -279,7 +281,7 @@ class Slice(FunctionExpression, IterableExpression):
 class UnionArrays(FunctionExpression, IterableExpression):
     name = "UNION"
 
-    def __init__(self, *arrays: Union[list, ListExpression]):
+    def __init__(self, *arrays: Union[ListExpression, VariableExpression]):
         super().__init__(*arrays)
 
 

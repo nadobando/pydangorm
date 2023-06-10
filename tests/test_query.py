@@ -1,5 +1,6 @@
 import pytest
 
+from pydango.query.consts import DYNAMIC_ALIAS
 from pydango.query.expressions import (
     NEW,
     AndExpression,
@@ -38,26 +39,6 @@ def test_simple_query():
     assert repr_query == expected_repr
     assert aql_query.compile() == expected_compiled
     assert aql_query.bind_vars == {"param1": param1}
-
-
-# def test_multiple_collections():
-#     param1 = 20
-#     aql_query, coll1, coll2 = multiple_collections_query(param1)
-#     expected_compiled = (
-#         "FOR u1 IN `users` FILTER u1.age > @param1 FOR o IN `orders` FILTER o.date > u1.date SORT u1.name ASC RETURN u1"
-#     )
-#     expected_repr = (
-#         f"FOR {repr(coll1.iterator)} IN {repr(coll1)} "
-#         f"FILTER {repr(coll1.iterator)}.age > ? "
-#         f"FOR {repr(coll2.iterator)} IN <CollectionExpression: orders> "
-#         f"FILTER {repr(coll2.iterator)}.date > {repr(coll1.iterator)}.date "
-#         f"SORT {repr(coll1.iterator)}.name ASC "
-#         f"RETURN {repr(coll1.iterator)}"
-#     )
-#     repr_query = repr(aql_query)
-#     assert repr_query == expected_repr
-#     assert aql_query.compile() == expected_compiled
-#     assert aql_query._bind_vars == {"param1": param1}
 
 
 def test_complex_query():
@@ -392,7 +373,7 @@ def test_nested_return_expression():
     repr_query = repr(aql_query)
     assert repr_query == expected_repr
     assert aql_query.compile() == expected_compiled
-    assert aql_query.bind_vars == {"param1": param1, "param2": param2, "param3": param3, "param4": param4}
+    assert aql_query.bind_vars == {"param1": param1, "param2": param2, "param3": param3, "param4": tuple(param4)}
 
 
 def test_filter_and_return():
@@ -717,7 +698,7 @@ def test_let_query():
     aql = AQLQuery().let(let, query).return_(let)
 
     expected_repr = (
-        f"LET DynamicAlias = (FOR {repr(coll.iterator)} IN {repr(coll)} FILTER {repr(coll.iterator)}.age > ? SORT"
+        f"LET {DYNAMIC_ALIAS} = (FOR {repr(coll.iterator)} IN {repr(coll)} FILTER {repr(coll.iterator)}.age > ? SORT"
         f" {repr(coll.iterator)}.age ASC RETURN {repr(coll.iterator)}) RETURN {repr(let)}"
     )
 
@@ -857,7 +838,7 @@ def test_collect_aggregate_into():
     groups = VariableExpression()
     category_collect = VariableExpression()
     category_agg = VariableExpression()
-    aql: AQLQuery = (
+    aql = (
         AQLQuery()
         .for_(products)
         .collect(
