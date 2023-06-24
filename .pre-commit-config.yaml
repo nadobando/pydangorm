@@ -72,7 +72,6 @@ repos:
     rev: v1.0.0
     hooks:
       - id: mypy
-        verbose: true
         additional_dependencies:
           - 'pydantic'
 

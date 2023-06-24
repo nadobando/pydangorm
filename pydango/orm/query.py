@@ -1,12 +1,12 @@
 import sys
-from typing import Optional, Type, Union, overload, cast, Any
+from typing import Optional, Type, Union, cast, overload
 
 from pydango.orm.fields import ModelFieldExpression
 
 if sys.version_info >= (3, 10):
     from typing import Self
 else:
-    from typing_extensions import Self, reveal_type
+    from typing_extensions import Self
 
 from pydantic import BaseModel
 from pydantic.utils import lenient_issubclass
@@ -15,19 +15,19 @@ from pydango.orm.models import BaseArangoModel
 from pydango.orm.proxy import LazyProxy
 from pydango.orm.utils import Aliased
 from pydango.query.expressions import (
+    BinaryExpression,
     BinaryLogicalExpression,
     CollectionExpression,
     ConditionExpression,
+    Expression,
     FieldExpression,
     IterableExpression,
     IteratorExpression,
     LiteralExpression,
     ObjectExpression,
     ReturnableMixin,
-    VariableExpression,
-    BinaryExpression,
-    Expression,
     SortExpression,
+    VariableExpression,
 )
 from pydango.query.operations import ForParams, SortParams
 from pydango.query.options import (

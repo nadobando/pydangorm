@@ -1,14 +1,11 @@
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+import sys
+from typing import TYPE_CHECKING, Generic, TypeVar
 
-from pydantic import BaseModel
-
-from pydango.orm.fields import DocFieldDescriptor
-from pydango.query.expressions import Expression, FieldExpression, IteratorExpression
+from pydango.orm.fields import ModelFieldExpression
+from pydango.query.expressions import FieldExpression
 
 if TYPE_CHECKING:
     from pydango.orm.query import ORMQuery
-    from pydango.query import AQLQuery
-
 
 # class QueryableProjectableModelMeta(BaseModel.__class__, Expression.__class__):
 #     def __new__(mcs, name, bases, namespace, **kwargs):
@@ -84,3 +81,17 @@ class Aliased(Generic[T]):
 
     def compile(self, query_ref: "ORMQuery") -> str:
         return query_ref.orm_bound_vars[self].compile(query_ref)
+
+
+def convert_edge_data_to_valid_kwargs(edge_dict):
+    for i in edge_dict.copy():
+        if isinstance(i, ModelFieldExpression):
+            edge_dict[i.field] = edge_dict.pop(i)
+
+
+def get_globals(cls):
+    if cls.__module__ in sys.modules:
+        globalns = sys.modules[cls.__module__].__dict__.copy()
+    else:
+        globalns = {}
+    return globalns

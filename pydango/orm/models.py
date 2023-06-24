@@ -22,7 +22,10 @@ from typing import (
 
 import pydantic.typing
 
+from pydango.orm.consts import EDGES
 from pydango.orm.types import ArangoModel, TEdge
+from pydango.orm.utils import convert_edge_data_to_valid_kwargs, get_globals
+from pydango.query.consts import FROM, ID, KEY, REV, TO
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias, dataclass_transform
@@ -43,14 +46,19 @@ from pydantic.fields import (
     PrivateAttr,
     Undefined,
 )
-from pydantic.main import ModelMetaclass, object_setattr, validate_model  # noqa: ignore
+from pydantic.main import (  # noqa: ignore
+    ModelMetaclass,
+    create_model,
+    object_setattr,
+    validate_model,
+)
 from pydantic.typing import resolve_annotations
-from pydantic.utils import GetterDict, Representation
+from pydantic.utils import GetterDict
 
 from pydango import NAO
 from pydango.index import Index
-from pydango.orm.fields import DocFieldDescriptor, ModelFieldExpression
-from pydango.orm.relations import LinkTypes
+from pydango.orm.fields import DocFieldDescriptor
+from pydango.orm.relations import LIST_TYPES, LinkTypes
 
 if TYPE_CHECKING:
     from pydantic.fields import LocStr, ValidateReturn
@@ -93,7 +101,7 @@ class EdgeRelation(Relation[ArangoModel]):
     pass
 
 
-class Relationship(Representation):
+class Relationship:
     def __init__(
         self,
         *,
@@ -213,6 +221,15 @@ def ArangoField(model_field, relation) -> DocFieldDescriptor:
     return DocFieldDescriptor(model_field, relation)
 
 
+def edge_data_validator(*args, **kwargs):
+    print(args, kwargs)
+    return args, kwargs
+
+
+class EdgeData(BaseModel):
+    pass
+
+
 @dataclass_transform(kw_only_default=True, field_specifiers=(ArangoField,))
 class ArangoModelMeta(ModelMetaclass):
     def __new__(mcs, name, bases, namespace, **kwargs):
@@ -234,6 +251,19 @@ class ArangoModelMeta(ModelMetaclass):
                 relationships[k] = relation
                 original_annotations[k] = Union[original_annotations[k]]
 
+        if VertexModel in bases:
+            __edge_namespace__ = {}
+            for field, relation_info in relationships.items():
+                if relation_info.link_type in LIST_TYPES:
+                    __edge_namespace__[field] = (list[relation_info.via_model], ...)
+                else:
+                    __edge_namespace__[field] = (relation_info.via_model, ...)
+
+            m = create_model(f"{name}Edges", **__edge_namespace__, __base__=EdgeData)
+            namespace[EDGES] = Field(None, exclude=True)
+
+            original_annotations[EDGES] = Optional[m]
+
         dict_used = {
             **namespace,
             "__weakref__": None,
@@ -249,7 +279,8 @@ class ArangoModelMeta(ModelMetaclass):
             **kwargs,
         )
         relationship_fields = {}
-        for field_name, field in new_cls.__fields__.items():
+
+        for field_name, field in [(k, v) for k, v in new_cls.__fields__.items() if k != EDGES]:
             if field_name in relationships:
                 model_field = get_pydango_field(field, RelationModelField)
                 # todo improve this
@@ -263,6 +294,8 @@ class ArangoModelMeta(ModelMetaclass):
                     DocFieldDescriptor[model_field.type_](model_field, relationships[field_name]),
                 )
                 new_cls.__annotations__.update({field_name: DocFieldDescriptor[model_field.type_]})
+                # if issubclass(new_cls, VertexModel):
+                #     pass
             else:
                 setattr(new_cls, field_name, DocFieldDescriptor[field.type_](field))
 
@@ -286,9 +319,9 @@ Relationships: TypeAlias = dict[str, Relationship]
 
 
 class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
-    id: Optional[str] = Field(None, alias="_id")
-    key: Optional[str] = Field(None, alias="_key")
-    rev: Optional[str] = Field(None, alias="_rev")
+    id: Optional[str] = Field(None, alias=ID)
+    key: Optional[str] = Field(None, alias=KEY)
+    rev: Optional[str] = Field(None, alias=REV)
 
     __dali__session__: Optional[PydangoSession] = PrivateAttr()
 
@@ -309,7 +342,8 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
     def _decompose_class(cls: Type[Model], obj: Any) -> Union[GetterDict, dict]:  # type: ignore[override]
         if isinstance(obj, dict):
             return obj
-        return super()._decompose_class(obj)
+        decompose_class = super()._decompose_class(obj)
+        return decompose_class
 
     def _calculate_keys(
         self,
@@ -354,11 +388,7 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
             relation.field = cls.__fields__[name]
             relation.link_model = cls.__fields__[name].type_
             if isinstance(relation.via_model, ForwardRef):
-                if cls.__module__ in sys.modules:
-                    globalns = sys.modules[cls.__module__].__dict__.copy()
-                else:
-                    globalns = {}
-                relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, globalns, localns)
+                relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
 
 
 class VertexCollectionConfig(CollectionConfig):
@@ -370,8 +400,8 @@ class EdgeCollectionConfig(CollectionConfig):
 
 
 class EdgeModel(BaseArangoModel, ABC):
-    from_: Optional[Union[str, VertexModel]] = Field(None, alias="_from")
-    to: Optional[Union[str, VertexModel]] = Field(None, alias="_to")
+    from_: Optional[Union[str, VertexModel]] = Field(None, alias=FROM)
+    to: Optional[Union[str, VertexModel]] = Field(None, alias=TO)
 
     class Collection(EdgeCollectionConfig):
         pass
@@ -387,18 +417,30 @@ class EdgeModel(BaseArangoModel, ABC):
 
 # EdgeModel.update_forward_refs()
 # VertexModel.update_forward_refs()
-class VertexModel(BaseArangoModel, ABC):
-    # edges: Edges = Field(default_factory=dict, exclude=True)
 
-    # edges: dict[Union[ ModelFieldExpression,Type[TVia]], Union[list[EdgeModel], EdgeModel]] = Field(
-    #     default_factory=dict, exclude=True
-    # )
-    edges: dict[
-        Union[ModelFieldExpression, Type[EdgeModel], BaseArangoModel, str], Union[list[EdgeModel], EdgeModel]
-    ] = Field(default_factory=dict, exclude=True)
+
+class VertexModel(BaseArangoModel, ABC):
+    if TYPE_CHECKING:
+        edges: Union[dict, EdgeData, None] = None
 
     class Collection(VertexCollectionConfig):
         ...
 
+    def __init__(self, **data: Any):
+        if EDGES in data:
+            convert_edge_data_to_valid_kwargs(data[EDGES])
+        super().__init__(**data)
+
     def save_dict(self) -> DictStrAny:
         return self.dict(by_alias=True, exclude=self.__relationships_fields__.keys())
+
+    @classmethod
+    def update_forward_refs(cls, **localns: Any) -> None:
+        super().update_forward_refs(**localns)
+        globalns = get_globals(cls)
+
+        for fields, model_field in cls.__fields__[EDGES].type_.__fields__.items():
+            if isinstance(model_field.type_, ForwardRef):
+                model_field.type_ = pydantic.typing.evaluate_forwardref(model_field.type_, globalns, localns)
+
+        cls.__fields__[EDGES].type_.update_forward_refs(**localns, **globalns)

@@ -10,10 +10,12 @@ from indexed import IndexedOrderedDict
 
 from pydango import index
 from pydango.connection.utils import get_or_create_collection
+from pydango.orm.consts import EDGES
 from pydango.orm.models import ArangoModel, BaseArangoModel, EdgeModel, VertexModel
 from pydango.orm.proxy import LazyProxy
 from pydango.orm.query import ORMQuery, for_
 from pydango.orm.types import TEdge, TVertexModel
+from pydango.orm.utils import convert_edge_data_to_valid_kwargs
 from pydango.query.consts import FROM, TO
 from pydango.query.expressions import NEW, IteratorExpression, VariableExpression
 from pydango.query.functions import First, Length, Merge, UnionArrays
@@ -152,13 +154,18 @@ class PydangoSession:
                 if isinstance(relation_doc, LazyProxy):
                     relation_doc = relation_doc.__instance__
 
-                if isinstance(relation_doc, list):
-                    z = zip(relation_doc, model.edges.get(field, []))
-                    for vertex_doc, edge_doc in z:
-                        _prepare_relation(model, edge_cls, edge_doc, vertex_doc, visited)
-                else:
-                    edge_doc = model.edges.get(field)
-                    _prepare_relation(model, edge_cls, edge_doc, relation_doc, visited)
+                if model.edges:
+                    if isinstance(model.edges, dict):
+                        convert_edge_data_to_valid_kwargs(model.edges)
+                        model.edges = model.__fields__[EDGES].type_(**model.edges)
+
+                    if isinstance(relation_doc, list):
+                        z = zip(relation_doc, getattr(model.edges, field, []))
+                        for vertex_doc, edge_doc in z:
+                            _prepare_relation(model, edge_cls, edge_doc, vertex_doc, visited)
+                    else:
+                        edge_doc = getattr(model.edges, field)
+                        _prepare_relation(model, edge_cls, edge_doc, relation_doc, visited)
 
         traverse(document, _visited)
         return edge_collections, edge_vertex_index, vertex_collections
