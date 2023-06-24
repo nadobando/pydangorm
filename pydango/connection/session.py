@@ -175,7 +175,10 @@ class PydangoSession:
         if model.Collection.indexes:
             logger.debug("creating indexes", extra=dict(indexes=model.Collection.indexes, model=model))
         for i in model.Collection.indexes or []:
-            await index.mapping[i.__class__](collection, **dataclasses.asdict(i))
+            if isinstance(i, dict):
+                await index.mapping[i.__class__](collection, **i)
+            else:
+                await index.mapping[i.__class__](collection, **dataclasses.asdict(i))
 
     async def save(self, document: ArangoModel) -> ArangoModel:
         if isinstance(document, VertexModel):

@@ -1,10 +1,11 @@
 import datetime
-from typing import Annotated, List, Optional, Union
+from typing import Annotated, List, Optional, Type, Union
 
 import pytest
 
 from pydango.connection.session import PydangoSession
 from pydango.orm.models import (
+    BaseArangoModel,
     EdgeCollectionConfig,
     EdgeModel,
     Relation,
@@ -35,10 +36,10 @@ class User(VertexModel):
     name: str
     email: str
     age: int
-    friends: Annotated[Optional[List["User"]], Relation["Friendship"]]
-    posts: Annotated[Optional[List["Post"]], Relation["Authorship"]]
-    comments: Annotated[Optional[List["Comment"]], Relation["Commentary"]]
-    likes: Annotated[Optional[List[Union["Post", "Comment"]]], Relation["Like"]]
+    friends: Annotated[Optional[List["User"]], Relation["Friendship"]] = None
+    posts: Annotated[Optional[List["Post"]], Relation["Authorship"]] = None
+    comments: Annotated[Optional[List["Comment"]], Relation["Commentary"]] = None
+    likes: Annotated[Optional[List[Union["Post", "Comment"]]], Relation["Like"]] = None
 
     class Collection(VertexCollectionConfig):
         name = "users"
@@ -178,7 +179,10 @@ post1.comments = [comment1]
 @pytest.mark.asyncio
 async def test_save(database):
     session = PydangoSession(database)
-    for i in EdgeModel.__subclasses__() + VertexModel.__subclasses__():
+    models: list[Type[BaseArangoModel]] = []
+    models += VertexModel.__subclasses__()
+    models += EdgeModel.__subclasses__()
+    for i in models:
         await session.init(i)
 
     await session.save(user1)
