@@ -169,9 +169,9 @@ def test_insert():
 
 
 def test_remove():
-    aql = ORMQuery().remove(User(name="nadir", age=35)).return_(OLD())
-    expected_repr = "REMOVE {name: ?, age: ?} IN <CollectionExpression: users> RETURN OLD"
-    expected_compiled = "REMOVE {name: @param1, age: @param2} IN `users` RETURN OLD"
+    aql = ORMQuery().remove(User(key="user/123", name="nadir", age=35)).return_(OLD())
+    expected_repr = "REMOVE {_key: ?} IN <CollectionExpression: users> RETURN OLD"
+    expected_compiled = "REMOVE {_key: @param1} IN `users` RETURN OLD"
     assert repr(aql) == expected_repr
     assert aql.compile() == expected_compiled
 
@@ -193,11 +193,8 @@ def test_update():
 
 
 def test_upsert():
-    aql = (
-        ORMQuery()
-        .upsert(User(name="nadir", age=35), insert=User(name="nadir", age=36), update=User(name="nadir", age=36))
-        .return_(NEW())
-    )
+    user = User(name="nadir", age=36)
+    aql = ORMQuery().upsert(User(name="nadir", age=35), insert=user, update=user).return_(NEW())
     expected_repr = (
         "UPSERT {name: ?, age: ?} INSERT {name: ?, age: ?} UPDATE {name: ?, age: ?} IN <CollectionExpression: users>"
         " RETURN NEW"

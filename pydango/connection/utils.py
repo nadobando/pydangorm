@@ -29,7 +29,6 @@ async def get_or_create_collection(
         collection_name = model
         edge = edge or False
     elif collection := getattr(model, "Collection", None):
-        collection: model.Collection
         collection_name = collection.name
         if edge is None:
             edge = True if collection.type.value == collection.type.EDGE else False

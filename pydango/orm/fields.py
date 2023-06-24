@@ -22,12 +22,16 @@ FieldType = TypeVar("FieldType")
 
 
 class ModelFieldExpression(FieldExpression):
+    def __init__(self, field: Union[str, Expression], parent: Type[BaseArangoModel]):
+        super().__init__(field, cast(VariableExpression, parent))
+        self.parent = parent  # type: ignore[assignment]
+
     def compile(self, query_ref: AQLQuery) -> str:
         if isinstance(self.field, Expression):
             return super().compile(query_ref)
         else:
             if not isinstance(self.parent, IteratorExpression):
-                # currently there is importing ORMQuery creates a circular dependency
+                # currently importing ORMQuery creates a circular dependency
                 compiled = query_ref.orm_bound_vars[self.parent]  # type: ignore[attr-defined]
                 return f"{compiled.compile(query_ref)}.{self.field}"
             return super().compile(query_ref)
@@ -49,7 +53,7 @@ class DocFieldDescriptor(Generic[FieldType]):
         self, instance: Optional[ArangoModel], owner: Type[BaseArangoModel]
     ) -> Union[LazyProxy, ModelFieldExpression, None]:
         if not instance and self.field.name in owner.__fields__.keys():
-            return ModelFieldExpression(self.field.name, cast(VariableExpression, owner))
+            return ModelFieldExpression(self.field.name, owner)
 
         field_value = instance.__dict__.get(self.field.name)
         if field_value is not None:

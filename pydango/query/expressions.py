@@ -219,23 +219,26 @@ class IterableExpression(Expression, ReturnableMixin, ABC):
             self.iterator = iterator
 
 
+class QueryExpression(Expression, ABC):
+    parent: Optional["QueryExpression"] = None
+    sep = " "
+
+
 class AssignmentExpression(Expression):
     def __init__(self, variable: VariableExpression, expression: Expression):
         self.variable = variable
         self.expression = expression
-        self._is_query = isinstance(self.expression, QueryExpression) and True or False
 
     def compile(self, query_ref: "AQLQuery"):
         expression_compile = self.expression.compile(query_ref)
-        if self._is_query:
-            setattr(self.expression, "_parent", query_ref)
-            # self.expression._parent = query_ref
+        if isinstance(self.expression, QueryExpression):
+            self.expression.parent = query_ref
             expression_compile = f"({expression_compile})"
         return f"{self.variable.compile(query_ref)} = {expression_compile}"
 
     def __repr__(self):
         expression_repr = repr(self.expression)
-        if self._is_query:
+        if isinstance(self.expression, QueryExpression):
             expression_repr = f"({expression_repr})"
         return f"{repr(self.variable)} = {expression_repr}"
 
@@ -369,11 +372,6 @@ class ReturnableIterableExpression(IterableExpression, ReturnableMixin, ABC):
         super().__init__(iterator)
 
 
-class QueryExpression(Expression, ABC):
-    _parent: Optional["QueryExpression"] = None
-    sep = " "
-
-
 class SubQueryExpression(Expression, ReturnableMixin):
     def __init__(self, query: QueryExpression):
         self.query = query
@@ -470,7 +468,7 @@ class ListExpression(
             result = []
             for i in self._copy:
                 if isinstance(i, SubQueryExpression):
-                    i.query._parent = cast(QueryExpression, query_ref)
+                    i.query.parent = cast(QueryExpression, query_ref)
                 result.append(i.compile(query_ref))
             return f'[{", ".join(result)}]'
 
@@ -529,7 +527,7 @@ class ObjectExpression(BindableExpression, ReturnableMixin):
 
     def compile(self, query_ref: "AQLQuery") -> str:
         for bind in self._bind.values():
-            bind.query._parent = cast(QueryExpression, query_ref)
+            bind.query.parent = cast(QueryExpression, query_ref)
 
         pairs = []
 

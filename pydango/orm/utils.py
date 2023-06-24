@@ -10,48 +10,48 @@ if TYPE_CHECKING:
     from pydango.query import AQLQuery
 
 
-class QueryableProjectableModelMeta(BaseModel.__class__, Expression.__class__):
-    def __new__(mcs, name, bases, namespace, **kwargs):
-        parents = [b for b in bases if isinstance(b, mcs)]
-        if not parents:
-            return cast(QueryableProjectableModelMeta, super().__new__(mcs, name, bases, namespace))
-
-        new_cls = super().__new__(mcs, name, bases, namespace, **kwargs)
-
-        for field_name, field in new_cls.__fields__.items():
-            # model_field = get_pydango_field(field)
-            setattr(new_cls, field_name, DocFieldDescriptor(field))
-
-        return new_cls
-
-
-class PydangoSchema(BaseModel, Expression, metaclass=QueryableProjectableModelMeta):
-    @classmethod
-    def compile(cls, query_ref: "AQLQuery"):
-        d = {}
-        for name, field_info in cls.__fields__.items():
-            d[name] = field_info.default_factory and field_info.default_factory() or field_info.default
-        return str(d)
-
-    def __repr__(self):
-        d = {}
-        for name, field_info in self.__fields__.items():
-            d[name] = field_info.default_factory and field_info.default_factory() or field_info.default
-        return str(d)
-
-    @classmethod
-    def to_aql(cls, iterator: IteratorExpression) -> dict:
-        def create_fields_dict(fields):
-            result = {}
-            for name, field in fields.items():
-                if issubclass(field.type_, BaseModel):
-                    result[name] = create_fields_dict(field.type_.__fields__)
-                else:
-                    result[name] = f"{iterator}.{name}"
-            return result
-
-        result = create_fields_dict(cls.__fields__)
-        return result
+# class QueryableProjectableModelMeta(BaseModel.__class__, Expression.__class__):
+#     def __new__(mcs, name, bases, namespace, **kwargs):
+#         parents = [b for b in bases if isinstance(b, mcs)]
+#         if not parents:
+#             return cast(QueryableProjectableModelMeta, super().__new__(mcs, name, bases, namespace))
+#
+#         new_cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+#
+#         for field_name, field in new_cls.__fields__.items():
+#             # model_field = get_pydango_field(field)
+#             setattr(new_cls, field_name, DocFieldDescriptor(field))
+#
+#         return new_cls
+#
+#
+# class PydangoSchema(BaseModel, Expression, metaclass=QueryableProjectableModelMeta):
+#     @classmethod
+#     def compile(cls, query_ref: "AQLQuery"):
+#         d = {}
+#         for name, field_info in cls.__fields__.items():
+#             d[name] = field_info.default_factory and field_info.default_factory() or field_info.default
+#         return str(d)
+#
+#     def __repr__(self):
+#         d = {}
+#         for name, field_info in self.__fields__.items():
+#             d[name] = field_info.default_factory and field_info.default_factory() or field_info.default
+#         return str(d)
+#
+#     @classmethod
+#     def to_aql(cls, iterator: IteratorExpression) -> dict:
+#         def create_fields_dict(fields):
+#             result = {}
+#             for name, field in fields.items():
+#                 if issubclass(field.type_, BaseModel):
+#                     result[name] = create_fields_dict(field.type_.__fields__)
+#                 else:
+#                     result[name] = f"{iterator}.{name}"
+#             return result
+#
+#         result = create_fields_dict(cls.__fields__)
+#         return result
 
 
 T = TypeVar("T")

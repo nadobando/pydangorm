@@ -5,6 +5,7 @@ import aioarango.database
 from aioarango.typings import Fields
 
 
+@dataclass()
 class Index:
     ...
 

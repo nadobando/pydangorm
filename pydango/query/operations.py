@@ -12,6 +12,7 @@ from typing import (
     overload,
 )
 
+from pydango.query.consts import KEY
 from pydango.query.expressions import (
     AssignmentExpression,
     CollectionExpression,
@@ -69,7 +70,7 @@ class ForOperation(Operation):
     def __init__(
         self,
         collection_or_variable: ForParams,
-        in_: Optional[Union[IterableExpression, list]] = None,
+        in_: Optional[Union[list, IterableExpression]] = None,
         *,
         query_ref: "AQLQuery",
         options: Optional[LoopOptions] = None,
@@ -124,7 +125,7 @@ class ForOperation(Operation):
                     collection_or_variable.iterator = i
                 elif collection_or_variable.iterator.var_name in query_ref.__used_vars__:
                     raise ValueError(f"{collection_or_variable.iterator.var_name} variable is already defined")
-                else:
+                elif collection_or_variable.iterator.var_name:
                     query_ref.__used_vars__.add(collection_or_variable.iterator.var_name)
 
                 self.in_ = collection_or_variable
@@ -189,8 +190,8 @@ class TraversalOperation(Operation):
             tuple[IteratorExpression, ...],
         ],
         edge: Union[str, CollectionExpression],
-        start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
-        depth: Union[RangeExpression, range, tuple[int, int]],
+        start: Union[str, "LiteralExpression", VariableExpression, FieldExpression],
+        depth: Union[range, tuple[int, int], RangeExpression],
         direction: TraversalDirection,
         query_ref: "AQLQuery",
     ):
@@ -242,7 +243,7 @@ class TraversalOperation(Operation):
 class LetOperation(Operation):
     def __init__(
         self,
-        variable: Union[VariableExpression, str],
+        variable: Union[str, VariableExpression],
         expression: Expression,
         *,
         query_ref: "AQLQuery",
@@ -257,7 +258,7 @@ class LetOperation(Operation):
             self.query_ref.__used_vars__.add(variable.var_name)
 
         if isinstance(expression, QueryExpression):
-            expression._parent = self.query_ref
+            expression.parent = self.query_ref
             self._is_query = True
 
         if isinstance(expression, list):
@@ -311,7 +312,7 @@ class SortOperation(Operation):
 
 
 class ReturnOperation(Operation):
-    def __init__(self, return_expr: Union[ReturnableMixin, dict], query_ref: "AQLQuery", *, distinct=None):
+    def __init__(self, return_expr: Union[dict, ReturnableMixin], query_ref: "AQLQuery", *, distinct=None):
         super().__init__(query_ref=query_ref)
 
         if isinstance(return_expr, CollectionExpression):
@@ -364,7 +365,12 @@ class LimitOperation(Operation):
 
 
 class InsertOperation(Operation):
-    def __init__(self, doc, collection, query_ref: "AQLQuery"):
+    def __init__(
+        self,
+        doc: Union[dict, ObjectExpression, VariableExpression],
+        collection: Union[str, CollectionExpression],
+        query_ref: "AQLQuery",
+    ):
         super().__init__(query_ref=query_ref)
         if isinstance(doc, dict):
             doc = ObjectExpression(doc)
@@ -381,12 +387,22 @@ class InsertOperation(Operation):
 
 
 class RemoveOperation(Operation):
-    def __init__(self, expression, collection, *, options: Optional[RemoveOptions], query_ref: "AQLQuery"):
+    def __init__(
+        self,
+        expression: Union[str, dict, LiteralExpression, FieldExpression, VariableExpression, ObjectExpression],
+        collection: Union[str, CollectionExpression],
+        *,
+        options: Optional[RemoveOptions] = None,
+        query_ref: "AQLQuery",
+    ):
         super().__init__(query_ref=query_ref)
         self.options = options
 
         if isinstance(expression, dict):
-            expression = ObjectExpression(expression)
+            if KEY not in expression:
+                raise ValueError(f"expression must contain {KEY}")
+
+            expression = ObjectExpression({KEY: expression[KEY]})
         if isinstance(expression, str):
             expression = LiteralExpression(expression)
         if isinstance(collection, str):
@@ -483,11 +499,11 @@ class UpsertOperation(Operation):
     def __init__(
         self,
         query_ref: "AQLQuery",
-        filter_: Union[ObjectExpression, dict],
-        collection: Union[CollectionExpression, str],
-        insert: Union[ObjectExpression, dict],
+        filter_: Union[dict, ObjectExpression],
+        collection: Union[str, CollectionExpression],
+        insert: Union[dict, ObjectExpression],
         *,
-        update: Union[ObjectExpression, dict],
+        update: Union[dict, ObjectExpression],
         options: Optional[UpsertOptions] = None,
     ):
         ...
@@ -496,11 +512,11 @@ class UpsertOperation(Operation):
     def __init__(
         self,
         query_ref: "AQLQuery",
-        filter_: Union[ObjectExpression, dict],
-        collection: Union[CollectionExpression, str],
-        insert: Union[ObjectExpression, dict],
+        filter_: Union[dict, ObjectExpression],
+        collection: Union[str, CollectionExpression],
+        insert: Union[dict, ObjectExpression],
         *,
-        replace: Union[ObjectExpression, dict],
+        replace: Union[dict, ObjectExpression],
         options: Optional[UpsertOptions] = None,
     ):
         ...
@@ -508,12 +524,12 @@ class UpsertOperation(Operation):
     def __init__(
         self,
         query_ref: "AQLQuery",
-        filter_: Union[ObjectExpression, dict],
-        collection: Union[CollectionExpression, str],
-        insert: Union[ObjectExpression, dict],
+        filter_: Union[dict, ObjectExpression],
+        collection: Union[str, CollectionExpression],
+        insert: Union[dict, ObjectExpression],
         *,
-        update: Optional[Union[ObjectExpression, dict]] = None,
-        replace: Optional[Union[ObjectExpression, dict]] = None,
+        update: Union[dict, ObjectExpression, None] = None,
+        replace: Union[dict, ObjectExpression, None] = None,
         options: Optional[UpsertOptions] = None,
     ):
         super().__init__(query_ref)
@@ -583,7 +599,7 @@ class CollectOperation(Operation):
         *,
         collect: Optional[AssignmentParams] = None,
         aggregate: Optional[AssignmentParams] = None,
-        into: Optional[Union[VariableExpression, AssignmentParam]] = None,
+        into: Union[VariableExpression, AssignmentParam, None] = None,
         keep: Optional[VariableExpression] = None,
         with_count_into: Optional[VariableExpression] = None,
         options: Optional[CollectOptions] = None,

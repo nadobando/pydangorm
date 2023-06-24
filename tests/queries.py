@@ -103,6 +103,6 @@ def upsert_query(coll, filter_, insert=None, update=None, replace=None):
         insert=ObjectExpression(insert),
         replace=replace and ObjectExpression(replace),
         update=update and ObjectExpression(update),
-        coll=coll,
+        collection=coll,
     )
     return aql_query, coll

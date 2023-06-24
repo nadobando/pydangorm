@@ -1,6 +1,6 @@
 import pytest
 
-from pydango.query.consts import DYNAMIC_ALIAS
+from pydango.query.consts import DYNAMIC_ALIAS, KEY
 from pydango.query.expressions import (
     NEW,
     AndExpression,
@@ -595,14 +595,15 @@ def test_no_modification_query():
 
 def test_remove():
     param1 = 1
-    doc = {"a": param1}
+    key = "collection/key"
+    doc = {"_key": key, "a": param1}
     coll = "test"
     aql_query, coll = delete_query(coll, doc)
 
     repr_query = repr(aql_query)
-    assert repr_query == f"REMOVE {repr(ObjectExpression(doc))} IN {repr(coll)}"
-    assert aql_query.compile() == "REMOVE {a: @param1} IN `test`"
-    assert aql_query.bind_vars == {"param1": param1}
+    assert repr_query == f"REMOVE {repr(ObjectExpression({KEY:key}))} IN {repr(coll)}"
+    assert aql_query.compile() == "REMOVE {_key: @param1} IN `test`"
+    assert aql_query.bind_vars == {"param1": key}
 
 
 def test_update():

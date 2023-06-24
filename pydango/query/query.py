@@ -1,7 +1,7 @@
 import json
 import logging
 import sys
-from typing import Dict, List, Optional, Union, overload
+from typing import Dict, List, Optional, Union, overload, Any
 
 if sys.version_info >= (3, 10):
     from typing import Self, TypeAlias
@@ -57,6 +57,7 @@ from pydango.query.options import (
     RemoveOptions,
     ReplaceOptions,
     UpdateOptions,
+    UpsertOptions,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,13 +73,13 @@ class AQLQuery(QueryExpression):
         self.compiled_vars = None
         self.bind_vars: dict[str, Union[bool, str, int, float, dict, list]] = {}
         self.__dynamic_vars__: list[VariableExpression] = []
-        self.__used_vars__ = set()
-        self._parameters = {}
+        self.__used_vars__: set[str] = set()
+        self._parameters: dict[Any, str] = {}
         self._var_counter = 0
         self._param_counter = 0
-        self._parent = parent
+        self.parent: Optional[AQLQuery] = parent
         self._ops: list[Operation] = []
-        self._compiled = None
+        self._compiled = ""
         self.__is_modification_query__ = False
 
     def __str__(self):
@@ -96,27 +97,27 @@ class AQLQuery(QueryExpression):
         return self.sep.join(aql)
 
     def _get_var_name(self):
-        if self._parent:
-            return self._parent._get_var_name()
+        if self.parent:
+            return self.parent._get_var_name()
         self._var_counter += 1
         return f"var{self._var_counter}"
 
     def _get_param_var(self):
-        if self._parent:
-            return self._parent._get_param_var()
+        if self.parent:
+            return self.parent._get_param_var()
         self._param_counter += 1
         return f"@param{self._param_counter}"
 
     def for_(
         self,
         collection_or_variable: ForParams,
-        in_: Optional[Union[IterableExpression, "AQLQuery"]] = None,
+        in_: Optional[Union[IterableExpression, list, VariableExpression, list[VariableExpression], "AQLQuery"]] = None,
     ) -> Self:
         if self == in_:
             raise ValueError("is not possible to loop over the same query")
 
         if isinstance(in_, AQLQuery):
-            in_._parent = self
+            in_.parent = self
             in_ = VectorSubQueryExpression(in_)
 
         self._ops.append(ForOperation(collection_or_variable, in_, query_ref=self))  # type: ignore[arg-type]
@@ -149,7 +150,7 @@ class AQLQuery(QueryExpression):
 
     def filter(self, condition: ConditionExpression) -> "AQLQuery":
         if isinstance(condition, In) and isinstance(condition.right, AQLQuery):
-            condition.right._parent = self
+            condition.right.parent = self
             condition.right = VectorSubQueryExpression(condition.right)
 
         self._ops.append(FilterOperation(condition, query_ref=self))  # type: ignore[arg-type]
@@ -178,9 +179,9 @@ class AQLQuery(QueryExpression):
 
     def return_(self, return_expr: Union[ReturnableMixin, dict]) -> Self:
         if isinstance(return_expr, AQLQuery):
-            return_expr._parent = self
+            return_expr.parent = self
             return_expr = SubQueryExpression(return_expr)
-        self._ops.append(ReturnOperation(return_expr, query_ref=self))
+        self._ops.append(ReturnOperation(return_expr, query_ref=self))  # type: ignore[arg-type]
         return self
 
     def compile(self, *args, **kwargs) -> str:
@@ -198,8 +199,8 @@ class AQLQuery(QueryExpression):
         return self._get_var_name()
 
     def bind_parameter(self, parameter: BindableExpression) -> str:
-        if self._parent:
-            return self._parent.bind_parameter(parameter)
+        if self.parent:
+            return self.parent.bind_parameter(parameter)
         is_hashable = False
         try:
             hash(parameter.value)
@@ -222,23 +223,27 @@ class AQLQuery(QueryExpression):
         return var
 
     def limit(self, limit) -> Self:
-        self._ops.append(LimitOperation(limit, self))
+        self._ops.append(LimitOperation(limit, self))  # type: ignore[arg-type]
         return self
 
-    def insert(self, doc: Union[dict, ObjectExpression], collection: Union[str, CollectionExpression]) -> Self:
+    def insert(
+        self, doc: Union[dict, ObjectExpression, VariableExpression], collection: Union[str, CollectionExpression]
+    ) -> Self:
         self.__is_modification_query__ = True
-        self._ops.append(InsertOperation(doc, collection, self))
+        self._ops.append(InsertOperation(doc, collection, self))  # type: ignore[arg-type]
         return self
 
     def remove(
         self,
-        expression: Union[FieldExpression, VariableExpression, ObjectExpression, str],
-        collection,
+        expression: Union[dict, LiteralExpression, FieldExpression, VariableExpression, ObjectExpression, str],
+        collection: Union[str, CollectionExpression],
         *,
         options: Optional[RemoveOptions] = None,
     ) -> Self:
         self.__is_modification_query__ = True
-        self._ops.append(RemoveOperation(expression, collection, options=options, query_ref=self))
+        self._ops.append(
+            RemoveOperation(expression, collection, options=options, query_ref=self)
+        )  # type: ignore[arg-type]
         return self
 
     def update(self, key, doc, coll, *, options: Optional[UpdateOptions] = None) -> Self:
@@ -248,33 +253,66 @@ class AQLQuery(QueryExpression):
         )
         return self
 
-    def replace(self, key, doc, coll, *, options: Optional[ReplaceOptions] = None) -> Self:
+    def replace(
+        self,
+        key: Union[str, dict, ObjectExpression],
+        doc: Union[ObjectExpression, dict],
+        collection: Union[CollectionExpression, str],
+        *,
+        options: Optional[ReplaceOptions] = None,
+    ) -> Self:
         self.__is_modification_query__ = True
         self._ops.append(
-            ReplaceOperation(key, doc, coll, query_ref=self, options=options),
+            ReplaceOperation(key, doc, collection, query_ref=self, options=options),
         )
         return self
 
     @overload
-    def upsert(self, filter_, insert, coll, replace=None, *, options=None) -> Self:
+    def upsert(
+        self,
+        filter_: Union[dict, ObjectExpression],
+        insert: Union[dict, ObjectExpression],
+        collection: Union[str, CollectionExpression],
+        *,
+        replace: Union[dict, ObjectExpression],
+        options: Optional[UpsertOptions] = None,
+    ) -> Self:
         ...
 
     @overload
-    def upsert(self, filter_, insert, coll, update=None, *, options=None) -> Self:
+    def upsert(
+        self,
+        filter_: Union[dict, ObjectExpression],
+        insert: Union[dict, ObjectExpression],
+        collection: Union[str, CollectionExpression],
+        *,
+        update: Union[dict, ObjectExpression],
+        options: Optional[UpsertOptions] = None,
+    ) -> Self:
         ...
 
-    def upsert(self, filter_, insert, coll, update=None, replace=None, *, options=None) -> Self:
+    def upsert(
+        self,
+        filter_: Union[dict, ObjectExpression],
+        insert: Union[dict, ObjectExpression],
+        collection: Union[str, CollectionExpression],
+        *,
+        update: Union[dict, ObjectExpression, None] = None,
+        replace: Union[dict, ObjectExpression, None] = None,
+        options: Optional[UpsertOptions] = None,
+    ) -> Self:
         self.__is_modification_query__ = True
-        if not (update or replace):
-            raise ValueError("you must pass update or replace")
+
         if update:
             upsert_operation = UpsertOperation(
-                self, filter_=filter_, insert=insert, update=update, collection=coll, options=options
+                self, filter_=filter_, insert=insert, collection=collection, update=update, options=options
+            )
+        elif replace:
+            upsert_operation = UpsertOperation(
+                self, filter_=filter_, insert=insert, collection=collection, replace=replace, options=options
             )
         else:
-            upsert_operation = UpsertOperation(
-                self, filter_=filter_, insert=insert, replace=replace, collection=coll, options=options
-            )
+            raise ValueError("you must pass update or replace")
 
         self._ops.append(upsert_operation)
         return self
@@ -282,6 +320,7 @@ class AQLQuery(QueryExpression):
     @overload
     def collect(
         self,
+        *,
         collect: Optional[AssignmentParams] = None,
         into: Optional[Union[VariableExpression, AssignmentParam]] = None,
         keep: Optional[VariableExpression] = None,
@@ -292,6 +331,16 @@ class AQLQuery(QueryExpression):
     @overload
     def collect(
         self,
+        *,
+        with_count_into: Optional[VariableExpression] = None,
+        options: Optional[CollectOptions] = None,
+    ):
+        ...
+
+    @overload
+    def collect(
+        self,
+        *,
         collect: Optional[AssignmentParams] = None,
         with_count_into: Optional[VariableExpression] = None,
         options: Optional[CollectOptions] = None,
@@ -301,26 +350,20 @@ class AQLQuery(QueryExpression):
     @overload
     def collect(
         self,
+        *,
+        aggregate: Optional[AssignmentParams] = None,
+        into: Optional[Union[VariableExpression, AssignmentParam]] = None,
+        options: Optional[CollectOptions] = None,
+    ):
+        ...
+
+    @overload
+    def collect(
+        self,
+        *,
         collect: Optional[AssignmentParams] = None,
         aggregate: Optional[AssignmentParams] = None,
         into: Optional[Union[VariableExpression, AssignmentParam]] = None,
-        options: Optional[CollectOptions] = None,
-    ):
-        ...
-
-    @overload
-    def collect(
-        self,
-        aggregate: Optional[AssignmentParams] = None,
-        into: Optional[Union[VariableExpression, AssignmentParam]] = None,
-        options: Optional[CollectOptions] = None,
-    ):
-        ...
-
-    @overload
-    def collect(
-        self,
-        with_count_into: Optional[VariableExpression] = None,
         options: Optional[CollectOptions] = None,
     ):
         ...

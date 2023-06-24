@@ -36,7 +36,7 @@ class BaseFunctionExpression(Expression):
         arguments = []
         for arg in self.arguments:
             if isinstance(arg, QueryExpression):
-                arg._parent = query_ref
+                arg.parent = query_ref
 
             if isinstance(arg, Expression):
                 value = arg.compile(query_ref)

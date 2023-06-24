@@ -10,7 +10,7 @@ from indexed import IndexedOrderedDict
 
 from pydango import index
 from pydango.connection.utils import get_or_create_collection
-from pydango.orm.models import ArangoModel, BaseArangoModel, VertexModel
+from pydango.orm.models import ArangoModel, BaseArangoModel, EdgeModel, VertexModel
 from pydango.orm.proxy import LazyProxy
 from pydango.orm.query import ORMQuery, for_
 from pydango.orm.types import TEdge, TVertexModel
@@ -36,14 +36,16 @@ def _collection_from_model(database: StandardDatabase, model: Type[ArangoModel])
     return database.collection(model.Collection.name)
 
 
-def _group_by_relation(model: BaseArangoModel) -> Iterator[tuple[tuple[TVertexModel, TEdge], str]]:
+def _group_by_relation(
+    model: BaseArangoModel,
+) -> Iterator[tuple[tuple[Type[VertexModel], Optional[Type[EdgeModel]]], str]]:
     relationships = model.__relationships__
-    for model, group in groupby(
+    for m, group in groupby(
         relationships,
         lambda x: (relationships[x].link_model, relationships[x].via_model),
     ):
         for thing in group:
-            yield model, thing
+            yield m, thing
 
 
 class PydangoSession:
@@ -51,11 +53,11 @@ class PydangoSession:
         self.database = database
 
     @classmethod
-    def _build_insert_query(cls, document: Union[BaseArangoModel, TEdge]) -> ORMQuery:
+    def _build_graph_query(cls, document: VertexModel) -> ORMQuery:
         query = ORMQuery()
-        _visited = set()
-        edge_collections, edge_vertex_index, vertex_collections = cls._build_graph(_visited, document)
-        vertex_let_queries: dict[VertexModel, VariableExpression] = {}
+        _visited: set[int] = set()
+        edge_collections, edge_vertex_index, vertex_collections = cls._build_graph(document, _visited)
+        vertex_let_queries: dict[Type[VertexModel], VariableExpression] = {}
 
         for v in vertex_collections:
             from_var, vertices = cls._build_vertex_query(v, vertex_collections, vertex_let_queries)
@@ -88,7 +90,7 @@ class PydangoSession:
                 if len(edge_vars) > 1:
                     edges = cast(list[VariableExpression], UnionArrays(*edge_vars))
                 elif len(edge_vars) == 1:
-                    edges = cast(VariableExpression, edge_vars[0])
+                    edges = edge_vars[0]
                 else:
                     continue
 
@@ -116,10 +118,10 @@ class PydangoSession:
         return from_var, vertices
 
     @classmethod
-    def _build_graph(cls, _visited, document):
-        vertex_collections: OrderedDict[Type[ArangoModel], IndexedOrderedDict[ArangoModel]] = OrderedDict()
-        edge_collections: OrderedDict[Type[TEdge], IndexedOrderedDict[list[TEdge]]] = OrderedDict()
-        edge_vertex_index: dict[TEdge, dict[tuple[Type[ArangoModel], Type[ArangoModel]], dict[int, list[int]]]] = (
+    def _build_graph(cls, document: VertexModel, _visited: set[int]):
+        vertex_collections: dict[Type[VertexModel], IndexedOrderedDict[ArangoModel]] = OrderedDict()
+        edge_collections: dict[Type[EdgeModel], IndexedOrderedDict[list[TEdge]]] = OrderedDict()
+        edge_vertex_index: dict[EdgeModel, dict[tuple[Type[VertexModel], Type[VertexModel]], dict[int, list[int]]]] = (
             defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
         )
 
@@ -140,7 +142,9 @@ class PydangoSession:
                 vertex_collections.setdefault(model.__class__, IndexedOrderedDict())[id(model)] = model.save_dict()
                 visited.add(id(model))
 
-            for (vertex_cls, edge_cls), field in _group_by_relation(model):
+            models: tuple[Type[VertexModel], Optional[Type[EdgeModel]]]
+            for models, field in _group_by_relation(model):
+                edge_cls: Optional[Type[EdgeModel]] = models[1]
                 relation_doc = getattr(model, field)
                 if not relation_doc:
                     continue
@@ -166,8 +170,9 @@ class PydangoSession:
         for i in model.Collection.indexes or []:
             await index.mapping[i.__class__](collection, **dataclasses.asdict(i))
 
-    async def save(self, document: ArangoModel) -> dict:
-        query = self._build_insert_query(document)
+    async def save(self, document: ArangoModel) -> ArangoModel:
+        if isinstance(document, VertexModel):
+            query = self._build_graph_query(document)
         cursor = await query.execute(self.database)
         result = await cursor.next()
         logger.debug("cursor stats", extra=cursor.statistics())

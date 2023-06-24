@@ -82,7 +82,7 @@ skips = ['**/test_*.py', '**/test_*.py']
 line-length=120
 
 [tool.mypy]
-#mypy_path = "stubs/"
+mypy_path = "./stubs/"
 #explicit_package_bases = true
 exclude="""
 (
