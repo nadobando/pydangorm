@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 from collections import OrderedDict, defaultdict
+from enum import Enum
 from itertools import groupby
 from typing import Iterator, Optional, Type, Union, cast
 
@@ -20,6 +21,7 @@ from pydango.query.consts import FROM, TO
 from pydango.query.expressions import NEW, IteratorExpression, VariableExpression
 from pydango.query.functions import First, Length, Merge, UnionArrays
 from pydango.query.operations import RangeExpression
+from pydango.query.options import UpsertOptions
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,11 @@ def _group_by_relation(
     ):
         for thing in group:
             yield m, thing
+
+
+class UpdateStrategy(str, Enum):
+    UPDATE = "update"
+    REPLACE = "replace"
 
 
 class PydangoSession:
@@ -108,7 +115,7 @@ class PydangoSession:
         from_var = vertex_let_queries[from_model]
         to_var = vertex_let_queries[to_model]
         iterator = IteratorExpression()
-        ret = {FROM: from_var[from_]._id, TO: to_var[iterator]._id}
+        ret = {FROM: from_var[from_]._id, TO: to_var[iterator]._id}  # noqa: PyProtectedMember
         return iterator, new_rels, ret
 
     @classmethod
@@ -123,9 +130,9 @@ class PydangoSession:
     def _build_graph(cls, document: VertexModel, _visited: set[int]):
         vertex_collections: dict[Type[VertexModel], IndexedOrderedDict[ArangoModel]] = OrderedDict()
         edge_collections: dict[Type[EdgeModel], IndexedOrderedDict[list[TEdge]]] = OrderedDict()
-        edge_vertex_index: dict[EdgeModel, dict[tuple[Type[VertexModel], Type[VertexModel]], dict[int, list[int]]]] = (
-            defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        )
+        edge_vertex_index: dict[
+            Type[EdgeModel], dict[tuple[Type[VertexModel], Type[VertexModel]], dict[int, list[int]]]
+        ] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
         def _prepare_relation(model, edge_cls, edge_doc, relation_doc, visited):
             if edge_doc:
@@ -180,9 +187,23 @@ class PydangoSession:
             else:
                 await index.mapping[i.__class__](collection, **dataclasses.asdict(i))
 
-    async def save(self, document: ArangoModel) -> ArangoModel:
+    async def save(
+        self,
+        document: ArangoModel,
+        strategy: UpdateStrategy = UpdateStrategy.UPDATE,
+        follow_links: bool = False,
+        options: Union[UpsertOptions, None] = None,
+    ) -> ArangoModel:
         if isinstance(document, VertexModel):
             query = self._build_graph_query(document)
+        else:
+            if strategy == UpdateStrategy.UPDATE:
+                query = ORMQuery().upsert(document, document, update=document, options=options)
+            elif strategy == UpdateStrategy.REPLACE:
+                query = ORMQuery().upsert(document, document, replace=document, options=options)
+            else:
+                raise ValueError(f"strategy must be instance of {UpdateStrategy.__name__}")
+
         cursor = await query.execute(self.database)
         result = await cursor.next()
         logger.debug("cursor stats", extra=cursor.statistics())

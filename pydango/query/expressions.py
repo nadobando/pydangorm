@@ -98,13 +98,14 @@ class OLD(ModificationVariable):
     _keyword = "OLD"
 
 
-# noinspection PyTypeChecker
 class FieldExpression(Expression, ReturnableMixin):
     """
     Expression class for field access of objects and documents
     """
 
-    def __init__(self, field: Union[str, Expression], parent: Optional[VariableExpression] = None):
+    def __init__(
+        self, field: Union[str, Expression], parent: Union[VariableExpression, "FieldExpression", None] = None
+    ):
         self.parent = parent
         self.field = field
 

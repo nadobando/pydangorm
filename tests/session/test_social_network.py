@@ -2,6 +2,7 @@ import datetime
 from typing import Annotated, List, Optional, Type, Union
 
 import pytest
+from aioarango.database import StandardDatabase
 
 from pydango.connection.session import PydangoSession
 from pydango.orm.models import (
@@ -177,7 +178,7 @@ post1.comments = [comment1]
 
 
 @pytest.mark.asyncio
-async def test_save(database):
+async def test_save(database: StandardDatabase):
     session = PydangoSession(database)
     models: list[Type[BaseArangoModel]] = []
     models += VertexModel.__subclasses__()

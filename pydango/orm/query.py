@@ -46,7 +46,7 @@ MULTIPLE_COLLECTIONS_RESOLVED = "multiple collections resolved"
 def _bind(query: "ORMQuery", node: Expression):
     if isinstance(node, FieldExpression):
         if node.parent and isinstance(node.parent, type) and issubclass(node.parent, BaseArangoModel):
-            node.parent = query.orm_bound_vars[node.parent]
+            node.parent = query.orm_bound_vars[cast(Type[BaseArangoModel], node.parent)]
 
     # if isinstance(node.parent, Aliased):
     if isinstance(node, FieldExpression) and isinstance(node.parent, Aliased):
@@ -154,9 +154,10 @@ class ORMQuery(AQLQuery):
             raise ValueError(IMPLICIT_COLLECTION_ERROR)
         return super().insert(doc, collection)
 
-    # noinspection PyMethodOverriding
     @overload
-    def remove(self, expression: BaseArangoModel, *, options: Optional[RemoveOptions] = None):
+    def remove(  # noqa: PyMethodOverriding
+        self, expression: BaseArangoModel, *, options: Optional[RemoveOptions] = None
+    ):
         ...
 
     @overload
@@ -187,7 +188,7 @@ class ORMQuery(AQLQuery):
         return super().remove(expression, collection, options=options)
 
     @overload
-    def update(self, key, doc, *, options: Optional[UpdateOptions] = None) -> Self:
+    def update(self, key, doc, *, options: Optional[UpdateOptions] = None) -> Self:  # noqa: PyMethodOverriding
         ...
 
     @overload
@@ -204,7 +205,7 @@ class ORMQuery(AQLQuery):
         return self
 
     @overload
-    def replace(
+    def replace(  # noqa: PyMethodOverriding
         self,
         key: Union[str, dict, BaseArangoModel],
         doc: BaseArangoModel,
@@ -214,7 +215,7 @@ class ORMQuery(AQLQuery):
         ...
 
     @overload
-    def replace(
+    def replace(  # noqa: PyMethodOverriding
         self,
         key: BaseArangoModel,
         doc: Union[dict, BaseArangoModel],
@@ -257,7 +258,7 @@ class ORMQuery(AQLQuery):
         return super().replace(key, doc, collection, options=options)
 
     @overload
-    def upsert(
+    def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: BaseArangoModel,
         insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel],
@@ -268,7 +269,7 @@ class ORMQuery(AQLQuery):
         ...
 
     @overload
-    def upsert(
+    def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: BaseArangoModel,
         insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel],
@@ -279,7 +280,7 @@ class ORMQuery(AQLQuery):
         ...
 
     @overload
-    def upsert(
+    def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: Union[dict, BaseModel, ObjectExpression],
         insert: Union[dict, BaseModel, ObjectExpression],
@@ -291,7 +292,7 @@ class ORMQuery(AQLQuery):
         ...
 
     @overload
-    def upsert(
+    def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: Union[dict, BaseModel, ObjectExpression],
         insert: Union[dict, BaseModel, ObjectExpression],
