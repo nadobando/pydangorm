@@ -62,14 +62,14 @@ class PydangoSession:
         self.database = database
 
     @classmethod
-    def _build_graph_query(cls, document: VertexModel) -> ORMQuery:
+    def _build_graph_query(cls, document: VertexModel, strategy: UpdateStrategy = UpdateStrategy.UPDATE) -> ORMQuery:
         query = ORMQuery()
         _visited: set[int] = set()
         edge_collections, edge_vertex_index, vertex_collections = cls._build_graph(document, _visited)
         vertex_let_queries: dict[Type[VertexModel], VariableExpression] = {}
 
         for v in vertex_collections:
-            from_var, vertices = cls._build_vertex_query(v, vertex_collections, vertex_let_queries)
+            from_var, vertices = cls._build_vertex_query(v, vertex_collections, vertex_let_queries, strategy)
             query.let(from_var, vertices)
 
         main = VariableExpression()
@@ -104,7 +104,8 @@ class PydangoSession:
                     continue
 
                 edge_iter = IteratorExpression()
-                query.let(VariableExpression(), for_(edge_iter, edges).insert(edge_iter, e.Collection.name))
+
+                query.let(VariableExpression(), cls.build_upsert_query(edge_iter, strategy, e, edges))
 
         return query.return_(main)
 
@@ -119,12 +120,45 @@ class PydangoSession:
         return iterator, new_rels, ret
 
     @classmethod
-    def _build_vertex_query(cls, v, vertex_collections, vertex_let_queries):
+    def _build_vertex_query(cls, v, vertex_collections, vertex_let_queries, strategy: UpdateStrategy):
         i = IteratorExpression()
         from_var = VariableExpression()
         vertex_let_queries[v] = from_var
-        vertices = for_(i, in_=list(vertex_collections[v].values())).insert(i, v.Collection.name).return_(NEW())
-        return from_var, vertices
+
+        # vertices = (
+        #     for_(i, in_=list(vertex_collections[v].values()))
+        #     .insert(i, v.Collection.name)
+        #     .return_(NEW())
+        # )
+
+        vertices_docs = list(vertex_collections[v].values())
+        query = cls.build_upsert_query(i, strategy, v, vertices_docs)
+        return from_var, query
+
+    @classmethod
+    def build_upsert_query(
+        cls,
+        i: IteratorExpression,
+        strategy: UpdateStrategy,
+        model: Type[BaseArangoModel],
+        docs: Union[VariableExpression, list[VariableExpression]],
+    ):
+        filter_ = {}
+        for model_index in model.Collection.indexes:
+            if hasattr(model_index, "unique") and model_index.unique:
+                filter_ = {j: getattr(i, j) for j in model_index.fields}
+            if isinstance(model_index, dict) and model_index.get("unique"):
+                filter_ = {j: getattr(i, j) for j in model_index.get("fields", [])}
+        if isinstance(docs, list):
+            if not filter_ and all([x.get("_key") for x in docs]):
+                filter_ = {"_key": i._key}  # noqa: PyProtectedMember
+        query = for_(i, in_=docs)
+        if strategy == strategy.UPDATE:
+            query = query.upsert(filter_, i, model.Collection.name, update=i)
+        elif strategy == strategy.REPLACE:
+            query = query.upsert(filter_, i, model.Collection.name, replace=i)
+        query = query.return_(NEW())
+        return query
 
     @classmethod
     def _build_graph(cls, document: VertexModel, _visited: set[int]):
@@ -191,7 +225,7 @@ class PydangoSession:
         self,
         document: ArangoModel,
         strategy: UpdateStrategy = UpdateStrategy.UPDATE,
-        follow_links: bool = False,
+        # todo: follow_links: bool = False,
         options: Union[UpsertOptions, None] = None,
     ) -> ArangoModel:
         if isinstance(document, VertexModel):

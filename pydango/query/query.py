@@ -270,11 +270,11 @@ class AQLQuery(QueryExpression):
     @overload
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression],
-        insert: Union[dict, ObjectExpression],
+        filter_: Union[dict, ObjectExpression, VariableExpression],
+        insert: Union[dict, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
         *,
-        replace: Union[dict, ObjectExpression],
+        replace: Union[dict, ObjectExpression, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
@@ -282,23 +282,23 @@ class AQLQuery(QueryExpression):
     @overload
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression],
-        insert: Union[dict, ObjectExpression],
+        filter_: Union[dict, ObjectExpression, VariableExpression],
+        insert: Union[dict, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
         *,
-        update: Union[dict, ObjectExpression],
+        update: Union[dict, ObjectExpression, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
 
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression],
-        insert: Union[dict, ObjectExpression],
+        filter_: Union[dict, ObjectExpression, VariableExpression],
+        insert: Union[dict, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
         *,
-        update: Union[dict, ObjectExpression, None] = None,
-        replace: Union[dict, ObjectExpression, None] = None,
+        update: Union[dict, ObjectExpression, VariableExpression, None] = None,
+        replace: Union[dict, ObjectExpression, VariableExpression, None] = None,
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         self.__is_modification_query__ = True

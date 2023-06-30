@@ -56,7 +56,7 @@ from pydantic.typing import resolve_annotations
 from pydantic.utils import GetterDict
 
 from pydango import NAO
-from pydango.index import Index
+from pydango.index import Indexes
 from pydango.orm.fields import DocFieldDescriptor
 from pydango.orm.relations import LIST_TYPES, LinkTypes
 
@@ -178,7 +178,7 @@ class CollectionConfig:
     type: CollectionType
     wait_for_sync: Optional[bool] = False
     sync_json_schema: Optional[bool] = True
-    indexes: Optional[list[Union[Index, dict]]] = []
+    indexes: list[Indexes] = []
 
 
 OPERATIONAL_FIELDS = {"key", "id", "rev"}

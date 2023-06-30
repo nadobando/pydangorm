@@ -1,5 +1,12 @@
+import sys
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
+
 
 import aioarango.database
 from aioarango.typings import Fields
@@ -71,3 +78,5 @@ mapping = {
     TTLIndex: aioarango.database.StandardCollection.add_ttl_index,
     HashIndex: aioarango.database.StandardCollection.add_hash_index,
 }
+
+Indexes: TypeAlias = Union[GeoIndex, HashIndex, SkipListIndex, FullTextIndex, PersistentIndex, TTLIndex]

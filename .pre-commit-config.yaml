@@ -103,4 +103,4 @@ repos:
     hooks:
       - id: poetry-check
       - id: poetry-lock
-      - id: poetry-export
+#      - id: poetry-export

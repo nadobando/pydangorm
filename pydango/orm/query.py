@@ -261,9 +261,9 @@ class ORMQuery(AQLQuery):
     def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: BaseArangoModel,
-        insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel],
+        insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
         *,
-        replace: Union[dict, BaseModel, ObjectExpression, BaseArangoModel],
+        replace: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
@@ -272,9 +272,9 @@ class ORMQuery(AQLQuery):
     def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: BaseArangoModel,
-        insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel],
+        insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
         *,
-        update: Union[dict, BaseModel, ObjectExpression, BaseArangoModel],
+        update: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
@@ -282,11 +282,11 @@ class ORMQuery(AQLQuery):
     @overload
     def upsert(  # noqa: PyMethodOverriding
         self,
-        filter_: Union[dict, BaseModel, ObjectExpression],
-        insert: Union[dict, BaseModel, ObjectExpression],
+        filter_: Union[dict, BaseModel, ObjectExpression, VariableExpression],
+        insert: Union[dict, BaseModel, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
         *,
-        replace: Union[dict, BaseModel, ObjectExpression],
+        replace: Union[dict, BaseModel, ObjectExpression, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
@@ -294,19 +294,19 @@ class ORMQuery(AQLQuery):
     @overload
     def upsert(  # noqa: PyMethodOverriding
         self,
-        filter_: Union[dict, BaseModel, ObjectExpression],
-        insert: Union[dict, BaseModel, ObjectExpression],
+        filter_: Union[dict, BaseModel, ObjectExpression, VariableExpression],
+        insert: Union[dict, BaseModel, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
         *,
-        update: Union[dict, BaseModel, ObjectExpression],
+        update: Union[dict, BaseModel, ObjectExpression, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
 
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression, BaseModel, BaseArangoModel],
-        insert: Union[dict, ObjectExpression, BaseModel, BaseArangoModel],
+        filter_: Union[dict, ObjectExpression, BaseModel, BaseArangoModel, VariableExpression],
+        insert: Union[dict, ObjectExpression, BaseModel, BaseArangoModel, VariableExpression],
         collection: Union[str, CollectionExpression, None] = None,
         **kwargs,
         # update: Union[dict,ObjectExpression, BaseModel, BaseArangoModel, None] = None,

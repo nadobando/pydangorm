@@ -9,7 +9,7 @@ readme = "README.md"
 python = ">=3.9,<4.0"
 aioarango = "^1.0.0"
 pydantic = "^1.10.7"
-urllib3= "==1.26.15"
+urllib3 = "==1.26.15"
 indexed = "^1.3.0"
 
 
@@ -71,6 +71,7 @@ profile = "black"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
+asyncio_mode = "auto"
 #testpaths = [
 #    "tests",
 #]
@@ -79,12 +80,12 @@ addopts = "-ra"
 skips = ['**/test_*.py', '**/test_*.py']
 
 [tool.ruff]
-line-length=120
+line-length = 120
 
 [tool.mypy]
 mypy_path = "./stubs/"
 #explicit_package_bases = true
-exclude="""
+exclude = """
 (
   /(
       backups         # exclude a few common directories in the

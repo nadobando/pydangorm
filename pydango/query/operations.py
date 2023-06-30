@@ -499,11 +499,11 @@ class UpsertOperation(Operation):
     def __init__(
         self,
         query_ref: "AQLQuery",
-        filter_: Union[dict, ObjectExpression],
+        filter_: Union[dict, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
-        insert: Union[dict, ObjectExpression],
+        insert: Union[dict, ObjectExpression, VariableExpression],
         *,
-        update: Union[dict, ObjectExpression],
+        update: Union[dict, ObjectExpression, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ):
         ...
@@ -512,11 +512,11 @@ class UpsertOperation(Operation):
     def __init__(
         self,
         query_ref: "AQLQuery",
-        filter_: Union[dict, ObjectExpression],
+        filter_: Union[dict, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
-        insert: Union[dict, ObjectExpression],
+        insert: Union[dict, ObjectExpression, VariableExpression],
         *,
-        replace: Union[dict, ObjectExpression],
+        replace: Union[dict, ObjectExpression, VariableExpression],
         options: Optional[UpsertOptions] = None,
     ):
         ...
@@ -524,12 +524,12 @@ class UpsertOperation(Operation):
     def __init__(
         self,
         query_ref: "AQLQuery",
-        filter_: Union[dict, ObjectExpression],
+        filter_: Union[dict, ObjectExpression, VariableExpression],
         collection: Union[str, CollectionExpression],
-        insert: Union[dict, ObjectExpression],
+        insert: Union[dict, ObjectExpression, VariableExpression],
         *,
-        update: Union[dict, ObjectExpression, None] = None,
-        replace: Union[dict, ObjectExpression, None] = None,
+        update: Union[dict, ObjectExpression, VariableExpression, None] = None,
+        replace: Union[dict, ObjectExpression, VariableExpression, None] = None,
         options: Optional[UpsertOptions] = None,
     ):
         super().__init__(query_ref)
