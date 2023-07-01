@@ -3,6 +3,8 @@ import logging
 import sys
 from typing import Any, Dict, List, Optional, Union, overload
 
+# from pydango.orm.models import BaseArangoModel, save_dict
+
 if sys.version_info >= (3, 10):
     from typing import Self, TypeAlias
 else:
@@ -198,7 +200,7 @@ class AQLQuery(QueryExpression):
     def bind_variable(self) -> str:
         return self._get_var_name()
 
-    def bind_parameter(self, parameter: BindableExpression) -> str:
+    def bind_parameter(self, parameter: BindableExpression, override_var_name: Optional[str] = None) -> str:
         if self.parent:
             return self.parent.bind_parameter(parameter)
         is_hashable = False
@@ -211,7 +213,7 @@ class AQLQuery(QueryExpression):
             if str(parameter.value) in self._parameters:
                 return self._parameters[str(parameter.value)]
 
-        var = self._get_param_var()
+        var = override_var_name or self._get_param_var()
 
         self.bind_vars[var[1:]] = parameter.value
 
@@ -391,8 +393,11 @@ class AQLQuery(QueryExpression):
         )
         return self
 
+    def _serialize_vars(self):
+        self.compiled_vars = jsonable_encoder(self.bind_vars, by_alias=True)
+
     async def execute(self, db: Database, **options):
         compiled = self.compile()
-        self.compiled_vars = jsonable_encoder(self.bind_vars)
+        self.compiled_vars = self._serialize_vars()
         logger.debug("executing query", extra={"query": compiled, "bind_vars": json.dumps(self.compiled_vars)})
         return await db.aql.execute(compiled, bind_vars=self.compiled_vars, **options)

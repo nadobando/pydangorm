@@ -268,7 +268,12 @@ class Shift(FunctionExpression):
         super().__init__(array)
 
 
-class Slice(FunctionExpression, IterableExpression):
+class ArrayFunctionMixin:
+    def __getitem__(self, item):
+        return self.arguments[item]
+
+
+class Slice(FunctionExpression, IterableExpression, ArrayFunctionMixin):
     name = "SLICE"
 
     def __init__(self, array, start, count=None):
@@ -278,7 +283,7 @@ class Slice(FunctionExpression, IterableExpression):
             super().__init__(array, start, count)
 
 
-class UnionArrays(FunctionExpression, IterableExpression):
+class UnionArrays(FunctionExpression, IterableExpression, ArrayFunctionMixin):
     name = "UNION"
 
     def __init__(self, *arrays: Union[ListExpression, VariableExpression]):

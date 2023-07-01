@@ -1,9 +1,18 @@
+import ctypes
 import dataclasses
 import logging
+import sys
 from collections import OrderedDict, defaultdict
 from enum import Enum
 from itertools import groupby
-from typing import Iterator, Optional, Type, Union, cast
+from typing import Any, Iterator, Optional, Type, Union, cast
+
+from pydango.orm.relations import LIST_TYPES
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
 from aioarango.collection import StandardCollection
 from aioarango.database import StandardDatabase
@@ -17,7 +26,8 @@ from pydango.orm.proxy import LazyProxy
 from pydango.orm.query import ORMQuery, for_
 from pydango.orm.types import TEdge, TVertexModel
 from pydango.orm.utils import convert_edge_data_to_valid_kwargs
-from pydango.query.consts import FROM, TO
+from pydango.query import AQLQuery
+from pydango.query.consts import FROM, KEY, TO
 from pydango.query.expressions import NEW, IteratorExpression, VariableExpression
 from pydango.query.functions import First, Length, Merge, UnionArrays
 from pydango.query.operations import RangeExpression
@@ -50,6 +60,7 @@ def _group_by_relation(
     ):
         for thing in group:
             yield m, thing
+    return None
 
 
 class UpdateStrategy(str, Enum):
@@ -57,29 +68,118 @@ class UpdateStrategy(str, Enum):
     REPLACE = "replace"
 
 
+def _make_upsert_query(
+    filter_: Any,
+    i: Any,
+    model: Union[Type[BaseArangoModel], BaseArangoModel],
+    query: AQLQuery,
+    strategy: UpdateStrategy,
+    options: Union[UpsertOptions, None] = None,
+):
+    if strategy == strategy.UPDATE:
+        query = query.upsert(filter_, i, model.Collection.name, update=i, options=options)
+    elif strategy == strategy.REPLACE:
+        query = query.upsert(filter_, i, model.Collection.name, replace=i, options=options)
+    else:
+        raise ValueError(f"strategy must be instance of {UpdateStrategy.__name__}")
+
+    return query
+
+
+def _get_upsert_filter(
+    document: Union[BaseArangoModel, VariableExpression], model: Union[Type[BaseArangoModel], None] = None
+):
+    if not isinstance(document, BaseArangoModel) and model is not None:
+        indexes = model.Collection.indexes
+    elif isinstance(document, BaseArangoModel):
+        indexes = document.Collection.indexes
+    else:
+        indexes = tuple()
+
+    # todo: check first by _key or _id
+
+    filter_ = {}
+    for model_index in indexes:
+        if hasattr(model_index, "unique") and model_index.unique:
+            filter_ = {index_field: getattr(document, index_field) for index_field in model_index.fields}
+
+        if isinstance(model_index, dict) and model_index.get("unique"):
+            filter_ = {j: getattr(document, j) for j in model_index.get("fields", [])}
+
+    if not filter_:
+        key = getattr(document, KEY)
+        filter_ = {"_key": key} if key is not None else {}  # noqa: PyProtectedMember
+
+    return filter_
+
+
+CollectionUpsertOptions: TypeAlias = dict[Union[str, Type[BaseArangoModel]], UpsertOptions]
+
+
+def _bind_edge(from_model, instance, rels, to_model, vertex_collections, vertex_let_queries):
+    from_ = vertex_collections[from_model].keys().index(instance)
+    new_rels = [vertex_collections[to_model].keys().index(x) for x in rels]
+    from_var = vertex_let_queries[from_model]
+    to_var = vertex_let_queries[to_model]
+    iterator = IteratorExpression()
+    ret = {FROM: from_var[from_]._id, TO: to_var[iterator]._id}  # noqa: PyProtectedMember
+    return iterator, new_rels, ret
+
+
+def _build_upsert_query(
+    i: IteratorExpression,
+    strategy: UpdateStrategy,
+    model: Type[BaseArangoModel],
+    docs: Union[VariableExpression, list[VariableExpression]],
+):
+    filter_ = _get_upsert_filter(i, model)
+    query = for_(i, in_=docs)
+    query = _make_upsert_query(filter_, i, model, query, strategy, None).return_(NEW())
+    return query
+
+
+def _build_vertex_collection_query(v, vertices_docs, strategy: UpdateStrategy):
+    i = IteratorExpression()
+    from_var = VariableExpression()
+    query = _build_upsert_query(i, strategy, v, vertices_docs)
+    return from_var, query
+
+
 class PydangoSession:
     def __init__(self, database: StandardDatabase):
         self.database = database
 
     @classmethod
-    def _build_graph_query(cls, document: VertexModel, strategy: UpdateStrategy = UpdateStrategy.UPDATE) -> ORMQuery:
+    def _build_graph_query(
+        cls,
+        document: VertexModel,
+        strategy: UpdateStrategy = UpdateStrategy.UPDATE,
+        collection_options: Union[CollectionUpsertOptions, None] = None,
+    ) -> ORMQuery:
         query = ORMQuery()
         _visited: set[int] = set()
-        edge_collections, edge_vertex_index, vertex_collections = cls._build_graph(document, _visited)
+        edge_collections, edge_vertex_index, vertex_collections, model_fields_mapping = cls._build_graph(
+            document, _visited
+        )
         vertex_let_queries: dict[Type[VertexModel], VariableExpression] = {}
-
+        vertices_ids = {}
+        edge_ids = defaultdict(lambda: defaultdict(list))
         for v in vertex_collections:
-            from_var, vertices = cls._build_vertex_query(v, vertex_collections, vertex_let_queries, strategy)
-            query.let(from_var, vertices)
+            vertex_docs = list(vertex_collections[v].values())
+            vertices_ids[v] = [id(doc) for doc in vertex_docs]
+            from_var, vertex_query = _build_vertex_collection_query(v, vertex_docs, strategy)
+            vertex_let_queries[v] = from_var
+
+            query.let(from_var, vertex_query)
 
         main = VariableExpression()
         query.let(main, First(vertex_let_queries[document.__class__]))
-
+        edge_let_queries = {}
         for e, coll in edge_vertex_index.items():
             edge_vars = []
             for (from_model, to_model), instances in coll.items():
                 for instance, rels in instances.items():
-                    iterator, new_rels, ret = cls._bind_edge(
+                    iterator, new_rels, ret = _bind_edge(
                         from_model, instance, rels, to_model, vertex_collections, vertex_let_queries
                     )
                     v = VariableExpression()
@@ -88,6 +188,7 @@ class PydangoSession:
                     merger = IteratorExpression()
                     edge = VariableExpression()
                     query.let(edge, edge_collections[e][instance])
+                    edge_ids[e][instance].extend([id(doc) for doc in edge_collections[e][instance]])
 
                     merged = VariableExpression()
                     query.let(
@@ -104,61 +205,65 @@ class PydangoSession:
                     continue
 
                 edge_iter = IteratorExpression()
+                # edge_let_queries[e] = edges
+                edge_let_queries[e] = VariableExpression()
+                query.let(edge_let_queries[e], _build_upsert_query(edge_iter, strategy, e, edges))
 
-                query.let(VariableExpression(), cls.build_upsert_query(edge_iter, strategy, e, edges))
+        fields = defaultdict(list)
 
-        return query.return_(main)
+        for vertex_cls, vertex_ids in vertices_ids.items():
+            if vertex_cls == document.__class__:
+                vertex_ids = vertex_ids[1:]
 
-    @classmethod
-    def _bind_edge(cls, from_model, instance, rels, to_model, vertex_collections, vertex_let_queries):
-        from_ = vertex_collections[from_model].keys().index(instance)
-        new_rels = [vertex_collections[to_model].keys().index(x) for x in rels]
-        from_var = vertex_let_queries[from_model]
-        to_var = vertex_let_queries[to_model]
-        iterator = IteratorExpression()
-        ret = {FROM: from_var[from_]._id, TO: to_var[iterator]._id}  # noqa: PyProtectedMember
-        return iterator, new_rels, ret
+            for i, v_id in enumerate(vertex_ids):
+                obj2 = ctypes.cast(v_id, ctypes.py_object).value
+                model_fields = model_fields_mapping[v_id].get(vertex_cls, {})
+                for j, field in enumerate(model_fields.values()):
+                    if vertex_cls == document.__class__:
+                        if vertex_cls.__relationships__[field].link_type in LIST_TYPES:
+                            fields[field].append(vertex_let_queries[vertex_cls][i + j + 1])
+                        else:
+                            fields[field] = vertex_let_queries[vertex_cls][i + j + 1]
 
-    @classmethod
-    def _build_vertex_query(cls, v, vertex_collections, vertex_let_queries, strategy: UpdateStrategy):
-        i = IteratorExpression()
-        from_var = VariableExpression()
-        vertex_let_queries[v] = from_var
+                    else:
+                        if vertex_cls.__relationships__[field].link_type in LIST_TYPES:
+                            fields[field].append(vertex_let_queries[vertex_cls][i + j])
+                        else:
+                            fields[field] = vertex_let_queries[vertex_cls][i + j + 1]
+                # todo: handle recursive
+                # break
 
-        # vertices = (
-        #     for_(i, in_=list(vertex_collections[v].values()))
-        #     .insert(i, v.Collection.name)
-        #     .return_(NEW())
+            edges = defaultdict(list)
+            # edges ={}
+            # for edge_cls, edge_ids in edge_ids.items():
+            #     for i, e_id in enumerate(edge_ids):
+            #         obj2 = ctypes.cast(e_id, ctypes.py_object).value
+            #         model_fields = model_fields_mapping[e_id].get(edge_cls, {})
+            #         for j, field in enumerate(model_fields.values()):
+            #             obj2 = ctypes.cast(relation_doc, ctypes.py_object).value
+            # var = VariableExpression()
+            # query.let(var, edge_let_queries[edge_cls])
+            # if vertex_cls.__relationships__[field].link_type in LIST_TYPES:
+            #     edges[field].append(var[i + j])
+            # else:
+            #     edges[field] = var[i + j]
+
+            # todo: handle recursive
+            # break
+            # break
+
+        # for vertex_id,v in model_fields_mapping.items():
+        #     vertices_ids[]
+        # pass
+        return query.return_(Merge(main, fields, {"edges": edges}))
+        # {
+        #     "main": main,
+        #     "fields":fields,
+        #     "vertex": {k.Collection.name: v for k, v in vertex_let_queries.items()},
+        #     "edges": {k.Collection.name: v for k, v in edge_let_queries.items()},
+        # "edges": edges,
+        # }
         # )
-
-        vertices_docs = list(vertex_collections[v].values())
-        query = cls.build_upsert_query(i, strategy, v, vertices_docs)
-        return from_var, query
-
-    @classmethod
-    def build_upsert_query(
-        cls,
-        i: IteratorExpression,
-        strategy: UpdateStrategy,
-        model: Type[BaseArangoModel],
-        docs: Union[VariableExpression, list[VariableExpression]],
-    ):
-        filter_ = {}
-        for model_index in model.Collection.indexes:
-            if hasattr(model_index, "unique") and model_index.unique:
-                filter_ = {j: getattr(i, j) for j in model_index.fields}
-            if isinstance(model_index, dict) and model_index.get("unique"):
-                filter_ = {j: getattr(i, j) for j in model_index.get("fields", [])}
-        if isinstance(docs, list):
-            if not filter_ and all([x.get("_key") for x in docs]):
-                filter_ = {"_key": i._key}  # noqa: PyProtectedMember
-        query = for_(i, in_=docs)
-        if strategy == strategy.UPDATE:
-            query = query.upsert(filter_, i, model.Collection.name, update=i)
-        elif strategy == strategy.REPLACE:
-            query = query.upsert(filter_, i, model.Collection.name, replace=i)
-        query = query.return_(NEW())
-        return query
 
     @classmethod
     def _build_graph(cls, document: VertexModel, _visited: set[int]):
@@ -167,49 +272,72 @@ class PydangoSession:
         edge_vertex_index: dict[
             Type[EdgeModel], dict[tuple[Type[VertexModel], Type[VertexModel]], dict[int, list[int]]]
         ] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        model_fields_mapping: dict[int, defaultdict[str, list[tuple[int, int]]]] = {}
 
-        def _prepare_relation(model, edge_cls, edge_doc, relation_doc, visited):
+        def _prepare_relation(field, model, edge_cls, edge_doc, relation_doc):
+            model_id = id(model)
             if edge_doc:
-                edge_collections.setdefault(edge_cls, IndexedOrderedDict()).setdefault(id(model), []).append(
-                    edge_doc.save_dict()
-                )
-            traverse(relation_doc, visited)
+                edge_collections.setdefault(edge_cls, IndexedOrderedDict()).setdefault(model_id, []).append(edge_doc)
 
-            edge_vertex_index[edge_cls][model.__class__, relation_doc.__class__][id(model)].append(id(relation_doc))
+            if model_id not in model_fields_mapping:
+                model_fields_mapping[model_id] = {relation_doc.__class__: {}}
+
+            if edge_cls not in model_fields_mapping[model_id]:
+                model_fields_mapping[model_id][edge_cls] = {}
+                pass
+
+            model_fields_mapping[model_id][relation_doc.__class__][id(relation_doc)] = field
+            model_fields_mapping[model_id][edge_cls][id(edge_doc)] = field
+
+            edge_vertex_index[edge_cls][model.__class__, relation_doc.__class__][model_id].append(id(relation_doc))
 
         def traverse(model: TVertexModel, visited: set):
-            if id(model) in visited:
+            model_id = id(model)
+            if model_id in visited:
                 return
 
             if isinstance(model, VertexModel):
-                vertex_collections.setdefault(model.__class__, IndexedOrderedDict())[id(model)] = model.save_dict()
-                visited.add(id(model))
+                vertex_collections.setdefault(model.__class__, IndexedOrderedDict())[model_id] = model
+                visited.add(model_id)
 
             models: tuple[Type[VertexModel], Optional[Type[EdgeModel]]]
-            for models, field in _group_by_relation(model):
-                edge_cls: Optional[Type[EdgeModel]] = models[1]
-                relation_doc = getattr(model, field)
-                if not relation_doc:
-                    continue
+            relations = list(_group_by_relation(model))
+            if relations:
+                for models, field in relations:
+                    edge_cls: Optional[Type[EdgeModel]] = models[1]
+                    relation_doc = getattr(model, field)
+                    if not relation_doc:
+                        model_fields_mapping[model_id] = {}
+                        continue
 
-                if isinstance(relation_doc, LazyProxy):
-                    relation_doc = relation_doc.__instance__
+                    if isinstance(relation_doc, LazyProxy):
+                        relation_doc = relation_doc.__instance__
 
-                if model.edges:
-                    if isinstance(model.edges, dict):
-                        convert_edge_data_to_valid_kwargs(model.edges)
-                        model.edges = model.__fields__[EDGES].type_(**model.edges)
+                    if model.edges:
+                        if isinstance(model.edges, dict):
+                            convert_edge_data_to_valid_kwargs(model.edges)
+                            model.edges = model.__fields__[EDGES].type_(**model.edges)
 
-                    if isinstance(relation_doc, list):
-                        z = zip(relation_doc, getattr(model.edges, field, []))
-                        for vertex_doc, edge_doc in z:
-                            _prepare_relation(model, edge_cls, edge_doc, vertex_doc, visited)
+                        if isinstance(relation_doc, list):
+                            z = zip(relation_doc, getattr(model.edges, field, []))
+                            for vertex_doc, edge_doc in z:
+                                _prepare_relation(field, model, edge_cls, edge_doc, vertex_doc)
+                                traverse(vertex_doc, visited)
+                        else:
+                            edge_doc = getattr(model.edges, field)
+                            _prepare_relation(field, model, edge_cls, edge_doc, relation_doc)
+                            traverse(relation_doc, visited)
                     else:
-                        edge_doc = getattr(model.edges, field)
-                        _prepare_relation(model, edge_cls, edge_doc, relation_doc, visited)
+                        # todo: insert join relation
+                        pass
+            else:
+                pass
+                # if not model_id in model_fields_mapping:
+                #     model_fields_mapping[model_id]={}
+                # model_fields_mapping[model_id][model.__class__] = {}
 
         traverse(document, _visited)
-        return edge_collections, edge_vertex_index, vertex_collections
+        return edge_collections, edge_vertex_index, vertex_collections, model_fields_mapping
 
     async def init(self, model: Type[BaseArangoModel]):
         collection = await get_or_create_collection(self.database, model)
@@ -226,17 +354,19 @@ class PydangoSession:
         document: ArangoModel,
         strategy: UpdateStrategy = UpdateStrategy.UPDATE,
         # todo: follow_links: bool = False,
-        options: Union[UpsertOptions, None] = None,
+        collection_options: Union[CollectionUpsertOptions, None] = None,
     ) -> ArangoModel:
         if isinstance(document, VertexModel):
-            query = self._build_graph_query(document)
+            query = self._build_graph_query(document, collection_options=collection_options)
         else:
-            if strategy == UpdateStrategy.UPDATE:
-                query = ORMQuery().upsert(document, document, update=document, options=options)
-            elif strategy == UpdateStrategy.REPLACE:
-                query = ORMQuery().upsert(document, document, replace=document, options=options)
-            else:
-                raise ValueError(f"strategy must be instance of {UpdateStrategy.__name__}")
+            options = (
+                collection_options
+                and (collection_options.get(document.Collection.name) or collection_options.get(document.__class__))
+                or None
+            )
+
+            filter_ = _get_upsert_filter(document)
+            query = _make_upsert_query(filter_, document, document, ORMQuery(), strategy, options)
 
         cursor = await query.execute(self.database)
         result = await cursor.next()

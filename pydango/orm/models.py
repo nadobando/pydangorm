@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from abc import ABC
+from abc import ABC, abstractmethod
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -13,6 +13,7 @@ from typing import (
     Generic,
     Mapping,
     Optional,
+    Sequence,
     Type,
     Union,
     cast,
@@ -21,8 +22,10 @@ from typing import (
 )
 
 import pydantic.typing
+from pydantic.fields import ConfigError
 
 from pydango.orm.consts import EDGES
+from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.types import ArangoModel, TEdge
 from pydango.orm.utils import convert_edge_data_to_valid_kwargs, get_globals
 from pydango.query.consts import FROM, ID, KEY, REV, TO
@@ -178,7 +181,7 @@ class CollectionConfig:
     type: CollectionType
     wait_for_sync: Optional[bool] = False
     sync_json_schema: Optional[bool] = True
-    indexes: list[Indexes] = []
+    indexes: Sequence[Indexes] = []
 
 
 OPERATIONAL_FIELDS = {"key", "id", "rev"}
@@ -222,7 +225,7 @@ def ArangoField(model_field, relation) -> DocFieldDescriptor:
 
 
 def edge_data_validator(*args, **kwargs):
-    print(args, kwargs)
+    # print(args, kwargs)
     return args, kwargs
 
 
@@ -260,6 +263,7 @@ class ArangoModelMeta(ModelMetaclass):
                     __edge_namespace__[field] = (relation_info.via_model, ...)
 
             m = create_model(f"{name}Edges", **__edge_namespace__, __base__=EdgeData)
+
             namespace[EDGES] = Field(None, exclude=True)
 
             original_annotations[EDGES] = Optional[m]
@@ -270,7 +274,8 @@ class ArangoModelMeta(ModelMetaclass):
             "__annotations__": original_annotations,
             "__relationships__": relationships,
         }
-
+        if VertexModel in bases:
+            dict_used.update({"__edges_model__": m})
         new_cls = super().__new__(
             mcs,
             name,
@@ -328,6 +333,7 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
     if TYPE_CHECKING:
         __relationships__: Relationships = {}
         __relationships_fields__: RelationshipFields = {}
+        __edges_model__: Union[Type[EdgeData], None] = None
 
     class Config(BaseConfig):
         arbitrary_types_allowed = True
@@ -373,8 +379,10 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
                 continue
             if field.required:
                 obj[field_name] = NAO
-
-        obj = super().from_orm(obj)
+        try:
+            obj = super().from_orm(obj)
+        except ConfigError as e:
+            raise e
         obj.__dali__session__ = session
         # object_setattr(obj, DALI_SESSION_KW, session)
         return obj
@@ -389,6 +397,19 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
             relation.link_model = cls.__fields__[name].type_
             if isinstance(relation.via_model, ForwardRef):
                 relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
+        # cls.__edges_model__.update_forward_refs(**localns)
+        for field in cls.__edges_model__.__fields__.values():
+            # update_field_forward_refs(field, get_globals(cls), localns)
+            # field.type_ = pydantic.typing.evaluate_forwardref(field.type_, get_globals(cls), localns)
+            # field.outer_type_ = pydantic.typing.evaluate_forwardref(field.outer_type_, get_globals(cls), localns)
+            # relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
+            pass
+            #
+            # print(field)
+
+    @abstractmethod
+    def save_dict(self) -> DictStrAny:
+        ...
 
 
 class VertexCollectionConfig(CollectionConfig):
@@ -400,23 +421,27 @@ class EdgeCollectionConfig(CollectionConfig):
 
 
 class EdgeModel(BaseArangoModel, ABC):
-    from_: Optional[Union[str, VertexModel]] = Field(None, alias=FROM)
-    to: Optional[Union[str, VertexModel]] = Field(None, alias=TO)
+    from_: Optional[Union[str]] = Field(None, alias=FROM)
+    to: Optional[Union[str]] = Field(None, alias=TO)
 
     class Collection(EdgeCollectionConfig):
         pass
 
     def save_dict(self) -> DictStrAny:
-        exclude = set()
+        exclude: set[Union[int, str]] = set()
         for key in ["from_", "to"]:
             if self.__getattribute__(key) is None:
                 exclude.add(key)
-
-        return self.dict(by_alias=True, exclude=exclude)
+        return jsonable_encoder(self, by_alias=True, exclude=exclude)
+        # return self.dict(by_alias=True, exclude=exclude)
 
 
 # EdgeModel.update_forward_refs()
 # VertexModel.update_forward_refs()
+
+
+def save_dict(model: BaseArangoModel):
+    return model.save_dict()
 
 
 class VertexModel(BaseArangoModel, ABC):
@@ -431,8 +456,44 @@ class VertexModel(BaseArangoModel, ABC):
             convert_edge_data_to_valid_kwargs(data[EDGES])
         super().__init__(**data)
 
+    def dict(
+        self,
+        *,
+        include: Optional[Union[AbstractSetIntStr, MappingIntStrAny]] = None,
+        exclude: Optional[Union[AbstractSetIntStr, MappingIntStrAny]] = None,
+        by_alias: bool = False,
+        skip_defaults: Optional[bool] = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        include_edges: bool = False,
+    ) -> DictStrAny:
+        if include_edges:
+            self.__exclude_fields__.pop("edges")
+        # if include_edges and include:
+        #     include_keys = {"edges"}
+        #     include_keys &= include.keys()
+        # elif include_edges:
+        #     include_keys =  set(self.__dict__.keys())
+        #     include_keys = include_keys.union( {"edges"})
+        # else:
+        #     include_keys = None
+
+        super__dict = super().dict(
+            include=include,
+            exclude=exclude,
+            by_alias=by_alias,
+            skip_defaults=skip_defaults,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+        )
+
+        self.__exclude_fields__["edges"] = True
+        return super__dict
+
     def save_dict(self) -> DictStrAny:
-        return self.dict(by_alias=True, exclude=self.__relationships_fields__.keys())
+        return jsonable_encoder(self, by_alias=True, exclude=cast(set, self.__relationships_fields__.keys()))
 
     @classmethod
     def update_forward_refs(cls, **localns: Any) -> None:

@@ -1,6 +1,8 @@
+import logging
 import sys
-from typing import Optional, Type, Union, cast, overload
+from typing import Optional, Sequence, Type, Union, cast, overload
 
+from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.fields import ModelFieldExpression
 
 if sys.version_info >= (3, 10):
@@ -11,12 +13,13 @@ else:
 from pydantic import BaseModel
 from pydantic.utils import lenient_issubclass
 
-from pydango.orm.models import BaseArangoModel
+from pydango.orm.models import BaseArangoModel, save_dict
 from pydango.orm.proxy import LazyProxy
 from pydango.orm.utils import Aliased
 from pydango.query.expressions import (
     BinaryExpression,
     BinaryLogicalExpression,
+    BindableExpression,
     CollectionExpression,
     ConditionExpression,
     Expression,
@@ -37,6 +40,8 @@ from pydango.query.options import (
     UpsertOptions,
 )
 from pydango.query.query import AQLQuery
+
+logger = logging.getLogger(__name__)
 
 ORMForParams = Union[ForParams, Type[BaseArangoModel], Aliased[Type[BaseArangoModel]]]
 IMPLICIT_COLLECTION_ERROR = "you must specify collection when the collection cannot be implicitly resolved"
@@ -76,6 +81,7 @@ def _find_models_and_bind(condition: Union[ConditionExpression, BinaryLogicalExp
 class ORMQuery(AQLQuery):
     def __init__(self, parent: Optional[AQLQuery] = None):
         super().__init__(parent)
+        # self.bind_parameter_to_sequence = {}
         self.orm_bound_vars: dict[Union[Type[BaseArangoModel], Aliased, ModelFieldExpression], VariableExpression] = {}
 
     def for_(
@@ -111,8 +117,13 @@ class ORMQuery(AQLQuery):
 
         elif isinstance(in_, LazyProxy):
             super().for_(collection_or_variable, in_.dict(by_alias=True))
-        else:
+        elif isinstance(in_, Sequence):
+            # if in_ and isinstance(in_[0], BaseArangoModel) and len(set([x.Collection.name for x in in_])) == 1:
+            #     self.bind_parameter_to_sequence[id(in_[0])] = in_[0].Collection.name
             super().for_(cast(Union[str, IteratorExpression], collection_or_variable), cast(list, in_))
+        else:
+            # logger.info("couldn't resolver at orm layer",extra={"vars":[collection_or_variable,in_]})
+            super().for_(cast(Union[str, IteratorExpression], collection_or_variable), in_)
 
         return self
 
@@ -186,6 +197,9 @@ class ORMQuery(AQLQuery):
             raise ValueError(IMPLICIT_COLLECTION_ERROR)
 
         return super().remove(expression, collection, options=options)
+
+    def bind_parameter(self, parameter: BindableExpression, override_var_name: Optional[str] = None) -> str:
+        return super().bind_parameter(parameter)
 
     @overload
     def update(self, key, doc, *, options: Optional[UpdateOptions] = None) -> Self:  # noqa: PyMethodOverriding
@@ -356,6 +370,9 @@ class ORMQuery(AQLQuery):
 
         super().return_(return_expr)
         return self
+
+    def _serialize_vars(self):
+        return jsonable_encoder(self.bind_vars, by_alias=True, custom_encoder={BaseArangoModel: save_dict})
 
 
 def for_(

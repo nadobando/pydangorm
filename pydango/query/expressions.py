@@ -211,6 +211,7 @@ class IterableExpression(Expression, ReturnableMixin, ABC):
     Base class for iterable expressions
     """
 
+    # todo: move this to a more relevant place
     def __init__(self, iterator: Optional[Union[IteratorExpression, str]] = None):
         if iterator is None:
             self.iterator = IteratorExpression()
@@ -449,7 +450,7 @@ class ListExpression(
             if isinstance(i, QueryExpression):
                 self._copy.append(SubQueryExpression(i))
                 self._need_compile = True
-            elif isinstance(i, VariableExpression):
+            elif isinstance(i, (VariableExpression, FieldExpression)):
                 self._copy.append(i)
                 self._need_compile = True
             elif isinstance(i, Expression):
@@ -508,10 +509,10 @@ class ObjectExpression(BindableExpression, ReturnableMixin):
             for field, mapped_field in self.value.items():
                 if isinstance(mapped_field, list):
                     self.value[field] = ListExpression(mapped_field)
-                    self.__all_literals__ = False
+                    self.__all_literals__ = self.__all_literals__ or not self.value[field]._need_compile
                 elif isinstance(mapped_field, dict):
                     self.value[field] = ObjectExpression(mapped_field, self.parent)
-                    self.__all_literals__ = False
+                    self.__all_literals__ = self.__all_literals__ or self.value[field].__all_literals__
 
                 elif isinstance(mapped_field, QueryExpression):
                     subquery = SubQueryExpression(mapped_field)
