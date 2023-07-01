@@ -116,35 +116,6 @@ def _get_upsert_filter(
 CollectionUpsertOptions: TypeAlias = dict[Union[str, Type[BaseArangoModel]], UpsertOptions]
 
 
-def _bind_edge(from_model, instance, rels, to_model, vertex_collections, vertex_let_queries):
-    from_ = vertex_collections[from_model].keys().index(instance)
-    new_rels = [vertex_collections[to_model].keys().index(x) for x in rels]
-    from_var = vertex_let_queries[from_model]
-    to_var = vertex_let_queries[to_model]
-    iterator = IteratorExpression()
-    ret = {FROM: from_var[from_]._id, TO: to_var[iterator]._id}  # noqa: PyProtectedMember
-    return iterator, new_rels, ret
-
-
-def _build_upsert_query(
-    i: IteratorExpression,
-    strategy: UpdateStrategy,
-    model: Type[BaseArangoModel],
-    docs: Union[VariableExpression, list[VariableExpression]],
-):
-    filter_ = _get_upsert_filter(i, model)
-    query = for_(i, in_=docs)
-    query = _make_upsert_query(filter_, i, model, query, strategy, None).return_(NEW())
-    return query
-
-
-def _build_vertex_collection_query(v, vertices_docs, strategy: UpdateStrategy):
-    i = IteratorExpression()
-    from_var = VariableExpression()
-    query = _build_upsert_query(i, strategy, v, vertices_docs)
-    return from_var, query
-
-
 class PydangoSession:
     def __init__(self, database: StandardDatabase):
         self.database = database
@@ -158,7 +129,7 @@ class PydangoSession:
     ) -> ORMQuery:
         query = ORMQuery()
         _visited: set[int] = set()
-        edge_collections, edge_vertex_index, vertex_collections, model_fields_mapping = cls._build_graph(
+        edge_collections, edge_vertex_index, vertex_collections, model_field_mapping = cls._build_graph(
             document, _visited
         )
         vertex_let_queries: dict[Type[VertexModel], VariableExpression] = {}
@@ -167,7 +138,7 @@ class PydangoSession:
         for v in vertex_collections:
             vertex_docs = list(vertex_collections[v].values())
             vertices_ids[v] = [id(doc) for doc in vertex_docs]
-            from_var, vertex_query = _build_vertex_collection_query(v, vertex_docs, strategy)
+            from_var, vertex_query = cls._build_vertex_query(v, vertex_docs, strategy)
             vertex_let_queries[v] = from_var
 
             query.let(from_var, vertex_query)
@@ -179,7 +150,7 @@ class PydangoSession:
             edge_vars = []
             for (from_model, to_model), instances in coll.items():
                 for instance, rels in instances.items():
-                    iterator, new_rels, ret = _bind_edge(
+                    iterator, new_rels, ret = cls._bind_edge(
                         from_model, instance, rels, to_model, vertex_collections, vertex_let_queries
                     )
                     v = VariableExpression()
@@ -207,7 +178,7 @@ class PydangoSession:
                 edge_iter = IteratorExpression()
                 # edge_let_queries[e] = edges
                 edge_let_queries[e] = VariableExpression()
-                query.let(edge_let_queries[e], _build_upsert_query(edge_iter, strategy, e, edges))
+                query.let(edge_let_queries[e], cls.build_upsert_query(edge_iter, strategy, e, edges))
 
         fields = defaultdict(list)
 
@@ -217,7 +188,7 @@ class PydangoSession:
 
             for i, v_id in enumerate(vertex_ids):
                 obj2 = ctypes.cast(v_id, ctypes.py_object).value
-                model_fields = model_fields_mapping[v_id].get(vertex_cls, {})
+                model_fields = model_field_mapping[v_id].get(vertex_cls, {})
                 for j, field in enumerate(model_fields.values()):
                     if vertex_cls == document.__class__:
                         if vertex_cls.__relationships__[field].link_type in LIST_TYPES:
@@ -231,28 +202,28 @@ class PydangoSession:
                         else:
                             fields[field] = vertex_let_queries[vertex_cls][i + j + 1]
                 # todo: handle recursive
-                # break
+                break
 
             edges = defaultdict(list)
             # edges ={}
-            # for edge_cls, edge_ids in edge_ids.items():
-            #     for i, e_id in enumerate(edge_ids):
-            #         obj2 = ctypes.cast(e_id, ctypes.py_object).value
-            #         model_fields = model_fields_mapping[e_id].get(edge_cls, {})
-            #         for j, field in enumerate(model_fields.values()):
-            #             obj2 = ctypes.cast(relation_doc, ctypes.py_object).value
-            # var = VariableExpression()
-            # query.let(var, edge_let_queries[edge_cls])
-            # if vertex_cls.__relationships__[field].link_type in LIST_TYPES:
-            #     edges[field].append(var[i + j])
-            # else:
-            #     edges[field] = var[i + j]
+            for edge_cls, edge_ids in edge_ids.items():
+                for i, e_id in enumerate(edge_ids):
+                    obj2 = ctypes.cast(e_id, ctypes.py_object).value
+                    model_fields = model_field_mapping[e_id].get(edge_cls, {})
+                    for j, field in enumerate(model_fields.values()):
+                        # obj2 = ctypes.cast(relation_doc, ctypes.py_object).value
+                        var = VariableExpression()
+                        query.let(var, edge_let_queries[edge_cls])
+                        if vertex_cls.__relationships__[field].link_type in LIST_TYPES:
+                            edges[field].append(var[i + j])
+                        else:
+                            edges[field] = var[i + j]
 
-            # todo: handle recursive
-            # break
-            # break
+                    # todo: handle recursive
+                    break
+                break
 
-        # for vertex_id,v in model_fields_mapping.items():
+        # for vertex_id,v in model_field_mapping.items():
         #     vertices_ids[]
         # pass
         return query.return_(Merge(main, fields, {"edges": edges}))
@@ -264,6 +235,36 @@ class PydangoSession:
         # "edges": edges,
         # }
         # )
+
+    @classmethod
+    def _bind_edge(cls, from_model, instance, rels, to_model, vertex_collections, vertex_let_queries):
+        from_ = vertex_collections[from_model].keys().index(instance)
+        new_rels = [vertex_collections[to_model].keys().index(x) for x in rels]
+        from_var = vertex_let_queries[from_model]
+        to_var = vertex_let_queries[to_model]
+        iterator = IteratorExpression()
+        ret = {FROM: from_var[from_]._id, TO: to_var[iterator]._id}  # noqa: PyProtectedMember
+        return iterator, new_rels, ret
+
+    @classmethod
+    def _build_vertex_query(cls, v, vertices_docs, strategy: UpdateStrategy):
+        i = IteratorExpression()
+        from_var = VariableExpression()
+        query = cls.build_upsert_query(i, strategy, v, vertices_docs)
+        return from_var, query
+
+    @classmethod
+    def build_upsert_query(
+        cls,
+        i: IteratorExpression,
+        strategy: UpdateStrategy,
+        model: Type[BaseArangoModel],
+        docs: Union[VariableExpression, list[VariableExpression]],
+    ):
+        filter_ = _get_upsert_filter(i, model)
+        query = for_(i, in_=docs)
+        query = _make_upsert_query(filter_, i, model, query, strategy, None).return_(NEW())
+        return query
 
     @classmethod
     def _build_graph(cls, document: VertexModel, _visited: set[int]):
@@ -284,7 +285,6 @@ class PydangoSession:
 
             if edge_cls not in model_fields_mapping[model_id]:
                 model_fields_mapping[model_id][edge_cls] = {}
-                pass
 
             model_fields_mapping[model_id][relation_doc.__class__][id(relation_doc)] = field
             model_fields_mapping[model_id][edge_cls][id(edge_doc)] = field
@@ -292,13 +292,12 @@ class PydangoSession:
             edge_vertex_index[edge_cls][model.__class__, relation_doc.__class__][model_id].append(id(relation_doc))
 
         def traverse(model: TVertexModel, visited: set):
-            model_id = id(model)
-            if model_id in visited:
+            if id(model) in visited:
                 return
 
             if isinstance(model, VertexModel):
-                vertex_collections.setdefault(model.__class__, IndexedOrderedDict())[model_id] = model
-                visited.add(model_id)
+                vertex_collections.setdefault(model.__class__, IndexedOrderedDict())[id(model)] = model
+                visited.add(id(model))
 
             models: tuple[Type[VertexModel], Optional[Type[EdgeModel]]]
             relations = list(_group_by_relation(model))
@@ -307,7 +306,7 @@ class PydangoSession:
                     edge_cls: Optional[Type[EdgeModel]] = models[1]
                     relation_doc = getattr(model, field)
                     if not relation_doc:
-                        model_fields_mapping[model_id] = {}
+                        model_fields_mapping[id(model)] = {}
                         continue
 
                     if isinstance(relation_doc, LazyProxy):
@@ -331,10 +330,7 @@ class PydangoSession:
                         # todo: insert join relation
                         pass
             else:
-                pass
-                # if not model_id in model_fields_mapping:
-                #     model_fields_mapping[model_id]={}
-                # model_fields_mapping[model_id][model.__class__] = {}
+                model_fields_mapping[id(model)] = {}
 
         traverse(document, _visited)
         return edge_collections, edge_vertex_index, vertex_collections, model_fields_mapping
