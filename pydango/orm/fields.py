@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, cast
 
-from pydantic.fields import ModelField
-
 from pydango.connection import DALI_SESSION_KW
 from pydango.orm.proxy import LazyProxy
 from pydango.query.expressions import (
@@ -14,6 +12,8 @@ from pydango.query.expressions import (
 )
 
 if TYPE_CHECKING:
+    from pydantic.fields import ModelField  # type: ignore[attr-defined]
+
     from pydango.orm.models import BaseArangoModel, Relationship
     from pydango.orm.types import ArangoModel
     from pydango.query import AQLQuery
@@ -51,7 +51,7 @@ class DocFieldDescriptor(Generic[FieldType]):
 
     def __get__(
         self, instance: Optional[ArangoModel], owner: Type[BaseArangoModel]
-    ) -> Union[LazyProxy, ModelFieldExpression, None]:
+    ) -> Union[LazyProxy[ArangoModel], ModelFieldExpression, None]:
         if not instance and self.field.name in owner.__fields__.keys():
             return ModelFieldExpression(self.field.name, owner)
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 import sys
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -22,11 +23,11 @@ from typing import (
 )
 
 import pydantic.typing
-from pydantic.fields import ConfigError
+from pydantic.fields import ConfigError  # type: ignore[attr-defined]
 
 from pydango.orm.consts import EDGES
 from pydango.orm.encoders import jsonable_encoder
-from pydango.orm.types import ArangoModel, TEdge
+from pydango.orm.types import ArangoModel
 from pydango.orm.utils import convert_edge_data_to_valid_kwargs, get_globals
 from pydango.query.consts import FROM, ID, KEY, REV, TO
 
@@ -36,7 +37,7 @@ else:
     from typing_extensions import TypeAlias, dataclass_transform
 
 from pydantic import BaseConfig, BaseModel
-from pydantic.fields import (
+from pydantic.fields import (  # type: ignore[attr-defined]
     SHAPE_FROZENSET,
     SHAPE_ITERABLE,
     SHAPE_LIST,
@@ -63,11 +64,18 @@ from pydango.index import Indexes
 from pydango.orm.fields import DocFieldDescriptor
 from pydango.orm.relations import LIST_TYPES, LinkTypes
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
-    from pydantic.fields import LocStr, ValidateReturn
+    from pydantic.fields import LocStr, ValidateReturn  # type: ignore[attr-defined]
     from pydantic.main import Model
     from pydantic.types import ModelOrDc
-    from pydantic.typing import DictStrAny, MappingIntStrAny, ReprArgs
+    from pydantic.typing import (
+        AbstractSetIntStr,
+        DictStrAny,
+        MappingIntStrAny,
+        ReprArgs,
+    )
 
     from pydango.connection.session import PydangoSession
 
@@ -111,7 +119,7 @@ class Relationship:
         field: ModelField,
         back_populates: Optional[str] = None,
         link_model: Type[VertexModel],
-        via_model: Optional[Type[TEdge]] = None,
+        via_model: Optional[Type[EdgeModel]] = None,
         link_type: LinkTypes,
     ):
         self.via_model = via_model
@@ -234,7 +242,7 @@ class EdgeData(BaseModel):
 
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(ArangoField,))
-class ArangoModelMeta(ModelMetaclass):
+class ArangoModelMeta(ModelMetaclass, ABCMeta):
     def __new__(mcs, name, bases, namespace, **kwargs):
         parents = [b for b in bases if isinstance(b, mcs)]
         if not parents or BaseArangoModel in parents:
@@ -283,14 +291,14 @@ class ArangoModelMeta(ModelMetaclass):
             dict_used,
             **kwargs,
         )
-        relationship_fields = {}
+        __relationship_fields__ = {}
 
         for field_name, field in [(k, v) for k, v in new_cls.__fields__.items() if k != EDGES]:
             if field_name in relationships:
                 model_field = get_pydango_field(field, RelationModelField)
                 # todo improve this
                 relationships[field_name].field = model_field
-                relationship_fields[field_name] = model_field
+                __relationship_fields__[field_name] = model_field
                 new_cls.__fields__[field_name] = model_field
 
                 setattr(
@@ -306,7 +314,7 @@ class ArangoModelMeta(ModelMetaclass):
 
         new_cls.__relationships__ = relationships
 
-        new_cls.__relationships_fields__ = relationship_fields
+        new_cls.__relationships_fields__ = __relationship_fields__
         new_cls.__annotations__ = {
             # **relationship_annotations,
             **original_annotations,
@@ -323,7 +331,7 @@ RelationshipFields: TypeAlias = dict[str, RelationModelField]
 Relationships: TypeAlias = dict[str, Relationship]
 
 
-class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
+class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
     id: Optional[str] = Field(None, alias=ID)
     key: Optional[str] = Field(None, alias=KEY)
     rev: Optional[str] = Field(None, alias=REV)
@@ -398,14 +406,14 @@ class BaseArangoModel(BaseModel, ABC, metaclass=ArangoModelMeta):
             if isinstance(relation.via_model, ForwardRef):
                 relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
         # cls.__edges_model__.update_forward_refs(**localns)
-        for field in cls.__edges_model__.__fields__.values():
-            # update_field_forward_refs(field, get_globals(cls), localns)
-            # field.type_ = pydantic.typing.evaluate_forwardref(field.type_, get_globals(cls), localns)
-            # field.outer_type_ = pydantic.typing.evaluate_forwardref(field.outer_type_, get_globals(cls), localns)
-            # relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
-            pass
-            #
-            # print(field)
+        # for field in cls.__edges_model__.__fields__.values():
+        # update_field_forward_refs(field, get_globals(cls), localns)
+        # field.type_ = pydantic.typing.evaluate_forwardref(field.type_, get_globals(cls), localns)
+        # field.outer_type_ = pydantic.typing.evaluate_forwardref(field.outer_type_, get_globals(cls), localns)
+        # relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
+        # pass
+        #
+        # print(field)
 
     @abstractmethod
     def save_dict(self) -> DictStrAny:
@@ -436,10 +444,6 @@ class EdgeModel(BaseArangoModel, ABC):
         # return self.dict(by_alias=True, exclude=exclude)
 
 
-# EdgeModel.update_forward_refs()
-# VertexModel.update_forward_refs()
-
-
 def save_dict(model: BaseArangoModel):
     return model.save_dict()
 
@@ -468,28 +472,28 @@ class VertexModel(BaseArangoModel, ABC):
         exclude_none: bool = False,
         include_edges: bool = False,
     ) -> DictStrAny:
-        if include_edges:
-            self.__exclude_fields__.pop("edges")
-        # if include_edges and include:
-        #     include_keys = {"edges"}
-        #     include_keys &= include.keys()
-        # elif include_edges:
-        #     include_keys =  set(self.__dict__.keys())
-        #     include_keys = include_keys.union( {"edges"})
-        # else:
-        #     include_keys = None
+        d = cast(dict, self.__exclude_fields__)
+        if include_edges and self.__exclude_fields__:
+            d.pop("edges")
 
-        super__dict = super().dict(
-            include=include,
-            exclude=exclude,
-            by_alias=by_alias,
-            skip_defaults=skip_defaults,
-            exclude_unset=exclude_unset,
-            exclude_defaults=exclude_defaults,
-            exclude_none=exclude_none,
-        )
+        try:
+            super__dict = super().dict(
+                include=include,
+                exclude=exclude,
+                by_alias=by_alias,
+                skip_defaults=skip_defaults,
+                exclude_unset=exclude_unset,
+                exclude_defaults=exclude_defaults,
+                exclude_none=exclude_none,
+            )
+        except RecursionError as e:
+            raise AssertionError(
+                "is not possible to call .dict() when using recursive model, instead traverse the graph and collect"
+                " data or exclude recursive fields"
+            ) from e
+        if self.__exclude_fields__:
+            d["edges"] = True
 
-        self.__exclude_fields__["edges"] = True
         return super__dict
 
     def save_dict(self) -> DictStrAny:

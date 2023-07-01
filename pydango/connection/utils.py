@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Type, Union, overload
+from typing import TYPE_CHECKING, Awaitable, Optional, Type, Union, cast, overload
 
 import aioarango
 
@@ -37,12 +37,12 @@ async def get_or_create_collection(
 
     if not await db.has_collection(collection_name):
         try:
-            return await db.create_collection(collection_name, edge=edge)
+            return await cast(Awaitable[StandardCollection], db.create_collection(collection_name, edge=edge))
         except aioarango.exceptions.CollectionCreateError as e:
             if e.error_code != 1207:
                 raise e
-    else:
-        return db.collection(collection_name)
+
+    return db.collection(collection_name)
 
 
 async def get_or_create_db(client: "ArangoClient", db: str, user: str = "", password: str = "") -> "StandardDatabase":

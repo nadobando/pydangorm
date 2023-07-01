@@ -73,7 +73,10 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies:
-          - 'pydantic'
+          - pydantic==1.10.10
+          - mypy-extensions
+#          - pytest
+#          - httpx
 
 
 #  - repo: https://github.com/jendrikseipp/vulture

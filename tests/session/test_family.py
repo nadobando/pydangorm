@@ -1,10 +1,11 @@
-from pprint import pprint
-from typing import Annotated, Optional
+import json
+from typing import Annotated, Optional, Sequence
 
 import pytest
 
 from pydango.connection.session import PydangoSession
 from pydango.index import PersistentIndex
+from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.models import (
     EdgeCollectionConfig,
     EdgeModel,
@@ -38,7 +39,7 @@ Person.update_forward_refs()
 
 
 def test_obj():
-    a = Person.parse_obj(
+    Person.parse_obj(
         {
             "_id": "people/29887",
             "_key": "29887",
@@ -158,4 +159,28 @@ async def test_save(database):
 
     p = await session.save(john)
 
-    pprint(p.dict(include_edges=True))
+    def traverse_recursive_fields(p, recursive_fields, visited):
+        if isinstance(p, Sequence):
+            for i in p:
+                traverse_recursive_fields(i, exclude, visited)
+
+        else:
+            d = p.dict(include_edges=False, exclude=recursive_fields)
+            for recursive_field in recursive_fields:
+                attr = getattr(p, recursive_field)
+
+                for i in attr:
+                    d[recursive_field] = i.dict(include_edges=False, exclude=recursive_fields)
+                    visited.add(id(i))
+                if id(attr) in visited:
+                    return d
+                visited.add(id(attr))
+                traverse_recursive_fields(attr, exclude, visited)
+            return d
+
+    exclude = {
+        "brothers",
+        "sisters",
+    }
+    a = traverse_recursive_fields(p, exclude, visited=set())
+    print(json.dumps(jsonable_encoder(a), indent=2))

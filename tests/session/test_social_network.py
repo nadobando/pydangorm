@@ -1,5 +1,6 @@
 import datetime
 from typing import Annotated, List, Optional, Type, Union
+from unittest.mock import ANY
 
 import pytest
 from aioarango.database import StandardDatabase
@@ -13,6 +14,7 @@ from pydango.orm.models import (
     VertexCollectionConfig,
     VertexModel,
 )
+from tests.utils import assert_equals_dicts
 
 
 class Post(VertexModel):
@@ -115,7 +117,7 @@ like3 = Like(liked_at=datetime.datetime.now())
 user1.friends = [user2, user3, user4]
 user1.posts = [post1]
 user1.comments = [comment1, comment2]
-user1.likes = [comment2, post2]
+user1.likes = [comment2]
 
 # user2.friends = [user1, user3]
 # user2.posts = [post1]
@@ -133,7 +135,7 @@ user1.likes = [comment2, post2]
 # user4.likes = [comment1, comment2]
 #
 user1.edges = {
-    User.friends: [friendship1, friendship2, friendship3, friendship4],
+    User.friends: [friendship1, friendship2, friendship3],
     User.comments: [commentary1, commentary2],
     User.posts: [authorship1],
     User.likes: [like1],
@@ -187,3 +189,135 @@ async def test_save(database: StandardDatabase):
         await session.init(i)
 
     await session.save(user1)
+
+    expected = {
+        "_id": ANY,
+        "_key": ANY,
+        "_rev": ANY,
+        "age": 25,
+        "comments": [
+            {"_id": ANY, "_key": ANY, "_rev": ANY, "text": "Great post!"},
+            {"_id": ANY, "_key": ANY, "_rev": ANY, "text": "I enjoyed reading this."},
+        ],
+        "edges": {
+            "comments": [
+                {
+                    "_from": ANY,
+                    "_id": ANY,
+                    "_key": ANY,
+                    "_rev": ANY,
+                    "_to": ANY,
+                    "commented_at": datetime.datetime(2023, 7, 1, 18, 53, 20, 121092),
+                },
+                {
+                    "_from": ANY,
+                    "_id": ANY,
+                    "_key": ANY,
+                    "_rev": ANY,
+                    "_to": ANY,
+                    "commented_at": datetime.datetime(2023, 7, 1, 18, 53, 20, 121098),
+                },
+            ],
+            "friends": [
+                {
+                    "_from": ANY,
+                    "_id": ANY,
+                    "_key": ANY,
+                    "_rev": ANY,
+                    "_to": ANY,
+                    "since": datetime.date(2020, 1, 1),
+                },
+                {
+                    "_from": ANY,
+                    "_id": ANY,
+                    "_key": ANY,
+                    "_rev": ANY,
+                    "_to": ANY,
+                    "since": datetime.date(2021, 3, 15),
+                },
+                {
+                    "_from": ANY,
+                    "_id": ANY,
+                    "_key": ANY,
+                    "_rev": ANY,
+                    "_to": ANY,
+                    "since": datetime.date(2022, 5, 10),
+                },
+            ],
+            "likes": [
+                {
+                    "_from": ANY,
+                    "_id": ANY,
+                    "_key": ANY,
+                    "_rev": ANY,
+                    "_to": ANY,
+                    "liked_at": datetime.datetime(2023, 7, 1, 18, 53, 20, 121134),
+                }
+            ],
+            "posts": [
+                {
+                    "_from": ANY,
+                    "_id": ANY,
+                    "_key": ANY,
+                    "_rev": ANY,
+                    "_to": ANY,
+                    "created_at": datetime.datetime(2023, 7, 1, 18, 53, 20, 121070),
+                }
+            ],
+        },
+        "email": "john@example.com",
+        "friends": [
+            {
+                "_id": ANY,
+                "_key": ANY,
+                "_rev": ANY,
+                "age": 30,
+                "comments": None,
+                "edges": None,
+                "email": "jane@example.com",
+                "friends": None,
+                "likes": None,
+                "name": "Jane",
+                "posts": None,
+            },
+            {
+                "_id": ANY,
+                "_key": ANY,
+                "_rev": ANY,
+                "age": 28,
+                "comments": None,
+                "edges": None,
+                "email": "alice@example.com",
+                "friends": None,
+                "likes": None,
+                "name": "Alice",
+                "posts": None,
+            },
+            {
+                "_id": ANY,
+                "_key": ANY,
+                "_rev": ANY,
+                "age": 32,
+                "comments": None,
+                "edges": None,
+                "email": "bob@example.com",
+                "friends": None,
+                "likes": None,
+                "name": "Bob",
+                "posts": None,
+            },
+        ],
+        "likes": [{"_id": ANY, "_key": ANY, "_rev": ANY, "text": "I enjoyed reading this."}],
+        "name": "John",
+        "posts": [
+            {
+                "_id": ANY,
+                "_key": ANY,
+                "_rev": ANY,
+                "comments": [{"_id": "comments/62920", "_key": "62920", "_rev": "_gPGmmm2--D", "text": "Great post!"}],
+                "content": "This is my first post!",
+                "title": "First Post",
+            }
+        ],
+    }
+    assert_equals_dicts(expected, user2.dict(by_alias=True, include_edges=True))

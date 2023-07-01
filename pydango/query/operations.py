@@ -26,6 +26,7 @@ from pydango.query.expressions import (
     ObjectExpression,
     QueryExpression,
     ReturnableMixin,
+    SortDirection,
     SortExpression,
     VariableExpression,
 )
@@ -38,7 +39,7 @@ from pydango.query.options import (
     UpdateOptions,
     UpsertOptions,
 )
-from pydango.query.utils import Compilable, SortDirection
+from pydango.query.utils import Compilable
 
 if TYPE_CHECKING:
     from pydango.query.query import AQLQuery

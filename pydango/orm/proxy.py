@@ -15,9 +15,9 @@ class LazyProxyMeta(type):
         return super().__new__(cls, name, bases, namespace, **kwargs)
 
 
-class LazyProxy(Generic[ArangoModel], metaclass=LazyProxyMeta):
+class LazyProxy(Generic[ArangoModel]):
     _initialized: bool = False
-    __instance__ = None
+    __instance__: Optional[ArangoModel] = None
 
     def __init__(self, instance, field, session: Optional["PydangoSession"]):
         self.session = session

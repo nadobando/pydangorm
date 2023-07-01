@@ -77,10 +77,11 @@ asyncio_mode = "auto"
 #]
 
 [tool.bandit.assert_used]
-skips = ['**/test_*.py', '**/test_*.py']
+skips = ["tests/utils*.py", '**/test_*.py', '**/test_*.py']
 
 [tool.ruff]
 line-length = 120
+exclude = ["stubs"]
 
 [tool.mypy]
 mypy_path = "./stubs/"
@@ -96,3 +97,10 @@ exclude = """
 
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = [
+    "requests_toolbelt",
+    "indexed"
+]
+ignore_missing_imports = true

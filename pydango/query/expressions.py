@@ -2,6 +2,7 @@ import datetime
 import sys
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from enum import Enum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Type, Union, cast
 
@@ -11,10 +12,15 @@ if sys.version_info >= (3, 10):
     from typing import TypeAlias
 else:
     from typing_extensions import TypeAlias
-from pydango.query.utils import SortDirection
+
 
 if TYPE_CHECKING:
     from pydango.query.query import AQLQuery
+
+
+class SortDirection(str, Enum):
+    ASC = "ASC"
+    DESC = "DESC"
 
 
 class ReturnableMixin(ABC):

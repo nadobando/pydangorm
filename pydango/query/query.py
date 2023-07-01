@@ -394,7 +394,7 @@ class AQLQuery(QueryExpression):
         return self
 
     def _serialize_vars(self):
-        self.compiled_vars = jsonable_encoder(self.bind_vars, by_alias=True)
+        return jsonable_encoder(self.bind_vars, by_alias=True)
 
     async def execute(self, db: Database, **options):
         compiled = self.compile()

@@ -5,8 +5,9 @@ from collections import defaultdict
 from typing import AsyncGenerator, TypeVar
 
 import pytest
+import pytest_asyncio
 from aioarango import ArangoClient
-from aioarango.database import Database
+from aioarango.database import Database, StandardDatabase
 
 from pydango.connection.utils import get_or_create_db
 from pydango.query.expressions import NEW
@@ -65,8 +66,8 @@ def add_log(caplog):
     handler = logging.StreamHandler(stream=sys.stdout)
     handler.setFormatter(formatter)
     logging.getLogger("pydango").addHandler(handler)
-    with caplog.at_level(logging.DEBUG, "pydango"):
-        yield
+    # with caplog.at_level(logging.DEBUG, "pydango"):
+    #     yield
 
 
 T = TypeVar("T")
@@ -82,13 +83,13 @@ async def client() -> AsyncFixture[ArangoClient]:
 
 
 @pytest.fixture(scope="session")
-async def database(client: ArangoClient) -> AsyncFixture[Database]:
+async def database(client: ArangoClient) -> AsyncFixture[StandardDatabase]:
     db = await get_or_create_db(client, "pydango")
     yield db
     # await (await client.db("_system")).delete_database("pydango")
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session", autouse=True)
 async def populate(database: Database):
     responses = defaultdict(list)
     for coll in DATA:

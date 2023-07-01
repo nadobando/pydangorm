@@ -1,5 +1,5 @@
 import datetime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import pytest
 
@@ -12,6 +12,10 @@ from pydango.orm.models import (
     VertexCollectionConfig,
     VertexModel,
 )
+from tests.utils import assert_equals_dicts
+
+if TYPE_CHECKING:
+    from aioarango.database import StandardDatabase
 
 
 class Visited(EdgeModel):
@@ -64,10 +68,7 @@ Person.update_forward_refs()
 
 
 @pytest.mark.asyncio
-async def test_save(database):
-    # await get_or_create_db(client, "pydango")
-    # db = await client.db("pydango")
-
+async def test_save(database: "StandardDatabase"):
     session = PydangoSession(database)
     await session.init(Person)
     await session.init(City)
@@ -91,27 +92,49 @@ async def test_save(database):
     )
 
     p = await session.save(p)
+    from unittest.mock import ANY
 
-    print(p)
-    # city = City(name="BsAs", population=33)
-    # await session.save(city)
-    # p = await session.get(Person, "356900")
-    # await session.save()
+    expected = {
+        "age": 35,
+        "edges": {
+            "lives_in": {
+                "from_": ANY,
+                "id": ANY,
+                "key": ANY,
+                "rev": ANY,
+                "since": datetime.datetime(2023, 7, 1, 18, 16, 38, 350095),
+                "to": ANY,
+            },
+            "visited": [
+                {
+                    "from_": ANY,
+                    "id": ANY,
+                    "key": ANY,
+                    "on_date": datetime.date(2023, 7, 1),
+                    "rating": 10,
+                    "rev": ANY,
+                    "to": ANY,
+                },
+                {
+                    "from_": ANY,
+                    "id": ANY,
+                    "key": ANY,
+                    "on_date": datetime.date(2023, 7, 1),
+                    "rating": 10,
+                    "rev": ANY,
+                    "to": ANY,
+                },
+            ],
+        },
+        "id": ANY,
+        "key": ANY,
+        "lives_in": {"id": ANY, "key": ANY, "name": "tlv", "population": 123, "rev": ANY},
+        "name": "John",
+        "rev": ANY,
+        "visited": [
+            {"id": ANY, "key": ANY, "name": "New York", "population": 123, "rev": ANY},
+            {"id": ANY, "key": ANY, "name": "Amsterdam", "population": 123, "rev": ANY},
+        ],
+    }
 
-    # new_q = NEW()
-    # city_q = ORMQuery().insert(city).return_(new_q._id)
-    # new_p = NEW()
-    # person_q = ORMQuery().insert(p).return_(new_p)
-    # lives_in_q = ORMQuery().insert(LivesIn(from_=new_p._id, to=new_q._id))
-
-    # await p.lives_in
-
-    # print(type(p.lives_in))
-    # print(id(p.lives_in.name))
-    # print(p.lives_in.fetch())
-
-    # print(p.dict(exclude={"id"}))
-
-
-# if __name__ == "__main__":
-#     asyncio.run(run())
+    assert_equals_dicts(p.dict(include_edges=True), expected)

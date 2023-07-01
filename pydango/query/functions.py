@@ -18,8 +18,6 @@ if TYPE_CHECKING:
 
 
 class BaseFunctionExpression(Expression):
-    returns = None
-
     def __init__(self, name, *arguments):
         self.name = name
         arguments = list(arguments)

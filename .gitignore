@@ -162,3 +162,4 @@ cython_debug/
 __pycache__
 .idea
 local
+stubs/*
