@@ -5,8 +5,8 @@ import pytest
 from aioarango.database import Database
 
 from pydango.connection.utils import deplete_cursor, iterate_cursor
-from tests.data import DATA
 from tests.queries import multiple_filters_query, projection_complex_query, simple_query
+from tests.test_queries.data import DATA
 
 
 @pytest.mark.asyncio

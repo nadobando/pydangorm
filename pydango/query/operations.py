@@ -190,16 +190,19 @@ class TraversalOperation(Operation):
             tuple[IteratorExpression, IteratorExpression, IteratorExpression],
             tuple[IteratorExpression, ...],
         ],
-        edge: Union[str, CollectionExpression],
+        edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
         start: Union[str, "LiteralExpression", VariableExpression, FieldExpression],
         depth: Union[range, tuple[int, int], RangeExpression],
         direction: TraversalDirection,
         query_ref: "AQLQuery",
     ):
         super().__init__(query_ref)
-        if isinstance(edge, str):
-            edge = CollectionExpression(edge)
-        # handle iterators
+        if isinstance(edges, str):
+            edges = CollectionExpression(edges)
+        elif isinstance(edges, Sequence):
+            edges = [CollectionExpression(i) if isinstance(i, str) else i for i in edges]
+            # for i in enumerate(edges):
+            #     if isinstance(i,str):
 
         if isinstance(iterators, IteratorExpression):
             iterators = (iterators,)
@@ -215,7 +218,7 @@ class TraversalOperation(Operation):
         if isinstance(start, str):
             start = LiteralExpression(start)
         self.iterators = iterators
-        self.edge = edge
+        self.edges = edges
         self.start = start
         self.direction = direction
         self.depth = depth
@@ -224,11 +227,15 @@ class TraversalOperation(Operation):
         compiled_iterators = []
         for i in self.iterators:
             compiled_iterators.append(i.compile(self.query_ref))
-
+        edges = (
+            isinstance(self.edges, list)
+            and ", ".join([i.compile(self.query_ref) for i in self.edges])
+            or self.edges.compile(self.query_ref)
+        )
         return (
             f"FOR {', '.join(compiled_iterators)} IN "
             f"{self.depth.compile(self.query_ref)} {self.direction.value} {self.start.compile(self.query_ref)} "
-            f"{self.edge.compile(self.query_ref)}"
+            f"{edges}"
         )
 
     def __repr__(self):
@@ -237,7 +244,8 @@ class TraversalOperation(Operation):
             compiled_iterators.append(repr(i))
 
         return (
-            f"FOR {', '.join(compiled_iterators)} IN {repr(self.depth)} {self.direction.value} {self.start} {self.edge}"
+            f"FOR {', '.join(compiled_iterators)} IN"
+            f" {repr(self.depth)} {self.direction.value} {self.start} {self.edges}"
         )
 
 
@@ -271,6 +279,10 @@ class LetOperation(Operation):
         self.expression = AssignmentExpression(variable, expression)
 
     def compile(self, *args, **kwargs):
+        if isinstance(self.expression, AssignmentExpression) and isinstance(
+            self.expression.expression, QueryExpression
+        ):
+            self.expression.expression.sep = " "
         return f"LET {self.expression.compile(self.query_ref)}"
 
     def __repr__(self):
@@ -320,9 +332,11 @@ class ReturnOperation(Operation):
             return_expr = return_expr.iterator
 
         elif isinstance(return_expr, list):
-            for i in return_expr:
-                if not isinstance(i, FieldExpression):
-                    raise Exception("todo: check this")
+            return_expr = ListExpression(return_expr)
+            # for i in return_expr:
+            #     if isinstance(i,str)
+            #     if not isinstance(i, FieldExpression):
+            #         raise Exception("todo: check this")
         elif isinstance(return_expr, Mapping):
             return_expr = ObjectExpression(return_expr)
 

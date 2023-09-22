@@ -37,7 +37,7 @@ async def get_or_create_collection(
 
     if not await db.has_collection(collection_name):
         try:
-            return await cast(Awaitable[StandardCollection], db.create_collection(collection_name, edge=edge))
+            return await cast(Awaitable["StandardCollection"], db.create_collection(collection_name, edge=edge))
         except aioarango.exceptions.CollectionCreateError as e:
             if e.error_code != 1207:
                 raise e

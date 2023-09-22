@@ -32,7 +32,12 @@ from pydango.query.expressions import (
     SortExpression,
     VariableExpression,
 )
-from pydango.query.operations import ForParams, SortParams
+from pydango.query.operations import (
+    ForParams,
+    RangeExpression,
+    SortParams,
+    TraversalDirection,
+)
 from pydango.query.options import (
     RemoveOptions,
     ReplaceOptions,
@@ -374,8 +379,31 @@ class ORMQuery(AQLQuery):
     def _serialize_vars(self):
         return jsonable_encoder(self.bind_vars, by_alias=True, custom_encoder={BaseArangoModel: save_dict})
 
+    def traverse(
+        self,
+        iterators: Union[
+            IteratorExpression,
+            tuple[IteratorExpression],
+            tuple[IteratorExpression, IteratorExpression],
+            tuple[IteratorExpression, IteratorExpression, IteratorExpression],
+        ],
+        edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
+        start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
+        depth: Union[RangeExpression, range, tuple[int, int]],
+        direction: TraversalDirection,
+    ):
+        return super().traverse(iterators, edges, start, depth, direction)
+        # return self
+
 
 def for_(
+    collection_or_variable: ORMForParams,
+    in_: Optional[Union[IterableExpression, VariableExpression, list[VariableExpression], list]] = None,
+) -> ORMQuery:
+    return ORMQuery().for_(collection_or_variable, in_)
+
+
+def traverse(
     collection_or_variable: ORMForParams,
     in_: Optional[Union[IterableExpression, VariableExpression, list[VariableExpression], list]] = None,
 ) -> ORMQuery:

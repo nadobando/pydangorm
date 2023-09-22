@@ -1,18 +1,13 @@
 import asyncio
 import logging
 import sys
-from collections import defaultdict
 from typing import AsyncGenerator, TypeVar
 
 import pytest
-import pytest_asyncio
 from aioarango import ArangoClient
-from aioarango.database import Database, StandardDatabase
+from aioarango.database import StandardDatabase
 
 from pydango.connection.utils import get_or_create_db
-from pydango.query.expressions import NEW
-from tests.data import DATA
-from tests.queries import insert_return_new_query
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -58,7 +53,7 @@ def add_log(caplog):
 
             for i in record.__dict__:
                 if i not in exclude:
-                    formatted_record += f" | {i}={record.__dict__[i]}"
+                    formatted_record += f"\n{i}=\n{record.__dict__[i]}"
 
             return formatted_record
 
@@ -66,8 +61,8 @@ def add_log(caplog):
     handler = logging.StreamHandler(stream=sys.stdout)
     handler.setFormatter(formatter)
     logging.getLogger("pydango").addHandler(handler)
-    # with caplog.at_level(logging.DEBUG, "pydango"):
-    #     yield
+    with caplog.at_level(logging.DEBUG, "pydango"):
+        yield
 
 
 T = TypeVar("T")
@@ -84,22 +79,9 @@ async def client() -> AsyncFixture[ArangoClient]:
 
 @pytest.fixture(scope="session")
 async def database(client: ArangoClient) -> AsyncFixture[StandardDatabase]:
+    # await (await client.db("_system")).delete_database("pydango")
+    # exit()
+
     db = await get_or_create_db(client, "pydango")
     yield db
     # await (await client.db("_system")).delete_database("pydango")
-
-
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def populate(database: Database):
-    responses = defaultdict(list)
-    for coll in DATA:
-        await database.delete_collection(coll, ignore_missing=True)
-        await database.create_collection(coll)
-    for coll in DATA:
-        for i, row in enumerate(DATA[coll]):
-            aql, _, __ = insert_return_new_query(coll, row, NEW())
-            response = await aql.execute(database)
-            next_ = await response.next()
-            DATA[coll][i] = next_
-            responses[coll].append(next_)
-    yield

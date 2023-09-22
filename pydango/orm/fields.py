@@ -1,4 +1,4 @@
-from __future__ import annotations
+# from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generic, Optional, Type, TypeVar, Union, cast
 
@@ -22,11 +22,11 @@ FieldType = TypeVar("FieldType")
 
 
 class ModelFieldExpression(FieldExpression):
-    def __init__(self, field: Union[str, Expression], parent: Type[BaseArangoModel]):
+    def __init__(self, field: Union[str, Expression], parent: Type["BaseArangoModel"]):
         super().__init__(field, cast(VariableExpression, parent))
         self.parent = parent  # type: ignore[assignment]
 
-    def compile(self, query_ref: AQLQuery) -> str:
+    def compile(self, query_ref: "AQLQuery") -> str:
         if isinstance(self.field, Expression):
             return super().compile(query_ref)
         else:
@@ -41,7 +41,7 @@ class ModelFieldExpression(FieldExpression):
 
 
 class DocFieldDescriptor(Generic[FieldType]):
-    def __init__(self, field: ModelField, relation: Optional[Relationship] = None):
+    def __init__(self, field: "ModelField", relation: Optional["Relationship"] = None):
         self.relation = relation
         self.field = field
 
@@ -50,8 +50,8 @@ class DocFieldDescriptor(Generic[FieldType]):
         # instance.__dict__[self.name] = LazyProxy(value)
 
     def __get__(
-        self, instance: Optional[ArangoModel], owner: Type[BaseArangoModel]
-    ) -> Union[LazyProxy[ArangoModel], ModelFieldExpression, None]:
+        self, instance: Optional["ArangoModel"], owner: Type["BaseArangoModel"]
+    ) -> Union[LazyProxy["ArangoModel"], ModelFieldExpression, None]:
         if not instance and self.field.name in owner.__fields__.keys():
             return ModelFieldExpression(self.field.name, owner)
 

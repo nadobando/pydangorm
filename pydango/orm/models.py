@@ -25,10 +25,15 @@ from typing import (
 import pydantic.typing
 from pydantic.fields import ConfigError  # type: ignore[attr-defined]
 
+import pydango.orm.fields
 from pydango.orm.consts import EDGES
 from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.types import ArangoModel
-from pydango.orm.utils import convert_edge_data_to_valid_kwargs, get_globals
+from pydango.orm.utils import (
+    convert_edge_data_to_valid_kwargs,
+    evaluate_forward_ref,
+    get_globals,
+)
 from pydango.query.consts import FROM, ID, KEY, REV, TO
 
 if sys.version_info >= (3, 10):
@@ -212,7 +217,7 @@ class RelationModelField(ModelField):
         return super().validate(v, values, loc=loc, cls=cls) if v is not NAO else (v, None)
 
 
-def get_pydango_field(field, cls=RelationModelField):
+def get_pydango_field(field: ModelField, cls: Type[RelationModelField] = RelationModelField) -> RelationModelField:
     return cls(
         name=field.name,
         type_=field.annotation,
@@ -243,14 +248,14 @@ class EdgeData(BaseModel):
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(ArangoField,))
 class ArangoModelMeta(ModelMetaclass, ABCMeta):
-    def __new__(mcs, name, bases, namespace, **kwargs):
+    def __new__(mcs, name: str, bases: tuple[Type], namespace: dict, **kwargs: Any):
         parents = [b for b in bases if isinstance(b, mcs)]
         if not parents or BaseArangoModel in parents:
-            new_cls = super().__new__(mcs, name, bases, namespace, **kwargs)
-            new_cls.__relationships__ = {}
-            new_cls.__relationships_fields__ = {}
-            return new_cls
-        relationships = {}
+            skipped_cls: BaseArangoModel = super().__new__(mcs, name, bases, namespace, **kwargs)
+            skipped_cls.__relationships__ = {}
+            skipped_cls.__relationships_fields__ = {}
+            return skipped_cls
+        _relationships: dict[str, Relationship] = {}
 
         original_annotations = resolve_annotations(
             namespace.get("__annotations__", {}), namespace.get("__module__", None)
@@ -259,62 +264,101 @@ class ArangoModelMeta(ModelMetaclass, ABCMeta):
         for k, v in original_annotations.items():
             relation = get_relation(k, v, namespace.get(k, Undefined), BaseConfig)
             if relation:
-                relationships[k] = relation
-                original_annotations[k] = Union[original_annotations[k]]
+                _relationships[k] = relation
+                # original_annotations[k] = Union[original_annotations[k]]
 
         if VertexModel in bases:
-            __edge_namespace__ = {}
-            for field, relation_info in relationships.items():
+            __edge_namespace__: dict[str, Any] = {}
+            for field, relation_info in _relationships.items():
+                via_model = relation_info.via_model
                 if relation_info.link_type in LIST_TYPES:
-                    __edge_namespace__[field] = (list[relation_info.via_model], ...)
+                    if relation_info.link_type in (LinkTypes.OPTIONAL_EDGE_LIST, LinkTypes.OPTIONAL_LIST):
+                        __edge_namespace__[field] = (Optional[list[via_model]], None)  # type: ignore[valid-type]
+                    else:
+                        __edge_namespace__[field] = (list[via_model], ...)  # type: ignore[valid-type]
+
+                elif relation_info.link_type in (LinkTypes.OPTIONAL_EDGE, LinkTypes.OPTIONAL_DIRECT):
+                    __edge_namespace__[field] = (Optional[via_model], None)
                 else:
-                    __edge_namespace__[field] = (relation_info.via_model, ...)
+                    __edge_namespace__[field] = (via_model, ...)  # type: ignore[assignment]
 
             m = create_model(f"{name}Edges", **__edge_namespace__, __base__=EdgeData)
 
             namespace[EDGES] = Field(None, exclude=True)
-
-            original_annotations[EDGES] = Optional[m]
+            original_annotations[EDGES] = cast(Any, Optional[m])
+        else:
+            namespace[EDGES] = Field(None, exclude=True)
+            original_annotations[EDGES] = cast(Any, None)
 
         dict_used = {
             **namespace,
             "__weakref__": None,
             "__annotations__": original_annotations,
-            "__relationships__": relationships,
+            "__relationships__": _relationships,
         }
-        if VertexModel in bases:
-            dict_used.update({"__edges_model__": m})
-        new_cls = super().__new__(
-            mcs,
-            name,
-            bases,
-            dict_used,
-            **kwargs,
-        )
+
+        new_cls: BaseArangoModel = super().__new__(mcs, name, bases, dict_used, **kwargs)
+
+        __edge_to_field_mapping__: dict[Union[str, ForwardRef], list[str]] = {}
+        for relation_field, relation_info in _relationships.items():
+            if not relation_info.via_model:
+                continue
+            if isinstance(relation_info.via_model, ForwardRef):
+                __edge_to_field_mapping__.setdefault(relation_info.via_model, []).append(cast(str, relation_field))
+            elif issubclass(relation_info.via_model, BaseArangoModel):
+                __edge_to_field_mapping__.setdefault(relation_info.via_model.Collection.name, []).append(relation_field)
+
+        errors: dict[Union[str, ForwardRef], list[str]] = {}
+
+        items = __edge_to_field_mapping__.items()
+
+        for coll_or_forward_ref, fields in items:
+            if len(fields) > 1:
+                for i, f in enumerate(fields):
+                    func = getattr(new_cls.Collection, f)
+                    if func:
+                        if not callable(func):
+                            raise ValueError(f"{func} is not callable")
+                        fields[i] = func
+
+                    else:
+                        errors.setdefault(coll_or_forward_ref, []).append(f)
+
+        if errors:
+            raise AttributeError(f"you must define the following Collection functions for distinction {dict(errors)}")
+
         __relationship_fields__ = {}
 
-        for field_name, field in [(k, v) for k, v in new_cls.__fields__.items() if k != EDGES]:
-            if field_name in relationships:
-                model_field = get_pydango_field(field, RelationModelField)
+        for field_name, model_field in [(x, y) for x, y in new_cls.__fields__.items() if x != EDGES]:
+            if field_name in _relationships:
+                pydango_field = get_pydango_field(model_field, RelationModelField)
                 # todo improve this
-                relationships[field_name].field = model_field
-                __relationship_fields__[field_name] = model_field
-                new_cls.__fields__[field_name] = model_field
+                # todo: check why fully qualified module name needed
+                relationship = cast(  # type: ignore[redundant-cast]
+                    pydango.orm.models.Relationship, _relationships[field_name]
+                )
+                relationship.field = pydango_field
+                __relationship_fields__[field_name] = pydango_field
+                new_cls.__fields__[field_name] = pydango_field
 
                 setattr(
                     new_cls,
                     field_name,
-                    DocFieldDescriptor[model_field.type_](model_field, relationships[field_name]),
+                    DocFieldDescriptor[pydango_field.type_](pydango_field, relationship),  # type: ignore[name-defined]
                 )
-                new_cls.__annotations__.update({field_name: DocFieldDescriptor[model_field.type_]})
-                # if issubclass(new_cls, VertexModel):
-                #     pass
+
+                field_annotation = {field_name: DocFieldDescriptor[pydango_field.type_]}  # type: ignore[name-defined]
+                new_cls.__annotations__.update(field_annotation)
             else:
-                setattr(new_cls, field_name, DocFieldDescriptor[field.type_](field))
+                setattr(
+                    new_cls,
+                    field_name,
+                    DocFieldDescriptor[model_field.type_](model_field),  # type: ignore[name-defined]
+                )
 
-        new_cls.__relationships__ = relationships
-
+        new_cls.__relationships__ = _relationships
         new_cls.__relationships_fields__ = __relationship_fields__
+        new_cls.__edge_to_field_mapping__ = __edge_to_field_mapping__
         new_cls.__annotations__ = {
             # **relationship_annotations,
             **original_annotations,
@@ -341,7 +385,8 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
     if TYPE_CHECKING:
         __relationships__: Relationships = {}
         __relationships_fields__: RelationshipFields = {}
-        __edges_model__: Union[Type[EdgeData], None] = None
+        # __edges_model__: Union[Type[EdgeData], None] = None
+        __edge_to_field_mapping__: dict[Union[str, ForwardRef], list[str]]
 
     class Config(BaseConfig):
         arbitrary_types_allowed = True
@@ -404,16 +449,19 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
             relation.field = cls.__fields__[name]
             relation.link_model = cls.__fields__[name].type_
             if isinstance(relation.via_model, ForwardRef):
-                relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
-        # cls.__edges_model__.update_forward_refs(**localns)
-        # for field in cls.__edges_model__.__fields__.values():
-        # update_field_forward_refs(field, get_globals(cls), localns)
-        # field.type_ = pydantic.typing.evaluate_forwardref(field.type_, get_globals(cls), localns)
-        # field.outer_type_ = pydantic.typing.evaluate_forwardref(field.outer_type_, get_globals(cls), localns)
-        # relation.via_model = pydantic.typing.evaluate_forwardref(relation.via_model, get_globals(cls), localns)
-        # pass
-        #
-        # print(field)
+                relation.via_model = evaluate_forward_ref(cls, relation.via_model, **localns)
+
+            if isinstance(relation.link_model, ForwardRef):
+                relation.link_model = evaluate_forward_ref(cls, relation.link_model, **localns)
+
+        for k in cls.__edge_to_field_mapping__.copy():
+            if isinstance(k, ForwardRef):
+                funcs = cls.__edge_to_field_mapping__.pop(k)
+                new_k = evaluate_forward_ref(cls, k, **localns)
+                if new_k in cls.__edge_to_field_mapping__:
+                    cls.__edge_to_field_mapping__[new_k.Collection.name].extend(funcs)
+                else:
+                    cls.__edge_to_field_mapping__[new_k.Collection.name] = funcs
 
     @abstractmethod
     def save_dict(self) -> DictStrAny:

@@ -2,8 +2,8 @@ import pytest
 from aioarango.database import Database
 
 from pydango.connection.utils import deplete_cursor
-from tests.data import DATA
-from tests.ecommerce_queries import (
+from tests.test_queries.data import DATA
+from tests.test_queries.ecommerce_queries import (
     get_ordered_products_with_reviews_query,
     get_product_orders_reviews_query,
     get_product_reviews_query,

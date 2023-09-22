@@ -1,5 +1,8 @@
 import sys
+from functools import lru_cache
 from typing import TYPE_CHECKING, Generic, TypeVar
+
+from pydantic.typing import evaluate_forwardref
 
 from pydango.orm.fields import ModelFieldExpression
 from pydango.query.expressions import FieldExpression
@@ -95,3 +98,8 @@ def get_globals(cls):
     else:
         globalns = {}
     return globalns
+
+
+@lru_cache
+def evaluate_forward_ref(source, model, **localns):
+    return evaluate_forwardref(model, get_globals(source), localns)

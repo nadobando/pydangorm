@@ -65,6 +65,7 @@ repos:
         args:
           - -c
           - pyproject.toml
+          - --quiet
         additional_dependencies:
           - toml
 
@@ -106,4 +107,6 @@ repos:
     hooks:
       - id: poetry-check
       - id: poetry-lock
-#      - id: poetry-export
+        args:
+          - --no-update
+          #      - id: poetry-export

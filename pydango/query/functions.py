@@ -61,6 +61,13 @@ class FunctionExpression(BaseFunctionExpression, ReturnableMixin):
 
 
 # document
+class Document(FunctionExpression):
+    name = "DOCUMENT"
+
+    def __init__(self, _id: str):
+        super().__init__(_id)
+
+
 class Unset(FunctionExpression):
     name = "UNSET"
 

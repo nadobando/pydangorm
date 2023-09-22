@@ -1,7 +1,7 @@
 import json
 import logging
 import sys
-from typing import Any, Dict, List, Optional, Union, overload
+from typing import Any, Dict, List, Optional, Sequence, Union, overload
 
 # from pydango.orm.models import BaseArangoModel, save_dict
 
@@ -133,15 +133,15 @@ class AQLQuery(QueryExpression):
             tuple[IteratorExpression, IteratorExpression],
             tuple[IteratorExpression, IteratorExpression, IteratorExpression],
         ],
-        edge: Union[str, CollectionExpression],
+        edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
         start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
         depth: Union[RangeExpression, range, tuple[int, int]],
         direction: TraversalDirection,
-    ):
+    ) -> Self:
         self._ops.append(
             TraversalOperation(
                 iterators=iterators,
-                edge=edge,
+                edges=edges,
                 start=start,
                 depth=depth,
                 direction=direction,
