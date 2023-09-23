@@ -4,6 +4,7 @@ import sys
 from collections import OrderedDict, defaultdict, namedtuple
 from enum import Enum
 from typing import (
+    TYPE_CHECKING,
     Any,
     DefaultDict,
     Iterator,
@@ -17,10 +18,25 @@ from typing import (
 )
 
 from aioarango import AQLQueryExecuteError
+from aioarango.collection import StandardCollection
+from aioarango.database import StandardDatabase
+from indexed import IndexedOrderedDict  # type: ignore[attr-defined]
 from pydantic import BaseModel
 
+from pydango import index
 from pydango.connection import DALI_SESSION_KW
-from pydango.orm.relations import LIST_TYPES
+from pydango.connection.utils import get_or_create_collection
+from pydango.orm.consts import EDGES
+from pydango.orm.models import BaseArangoModel, EdgeModel, VertexModel
+from pydango.orm.models.base import LIST_TYPES, LazyProxy
+from pydango.orm.models.vertex import convert_edge_data_to_valid_kwargs
+from pydango.orm.query import ORMQuery, for_
+from pydango.query import AQLQuery
+from pydango.query.consts import FROM, ID, KEY, REV, TO
+from pydango.query.expressions import IteratorExpression, VariableExpression
+from pydango.query.functions import Document, Length, Merge, UnionArrays
+from pydango.query.operations import RangeExpression, TraversalDirection
+from pydango.query.options import UpsertOptions
 from pydango.query.query import TraverseIterators
 from pydango.query.utils import new
 
@@ -31,29 +47,9 @@ if sys.version_info >= (3, 10):
 else:
     from typing_extensions import TypeAlias
 
-from aioarango.collection import StandardCollection
-from aioarango.database import StandardDatabase
-from indexed import IndexedOrderedDict  # type: ignore[attr-defined]
-
-from pydango import index
-from pydango.connection.utils import get_or_create_collection
-from pydango.orm.consts import EDGES
-from pydango.orm.models import (
-    ArangoModel,
-    BaseArangoModel,
-    EdgeModel,
-    LazyProxy,
-    TVertexModel,
-    VertexModel,
-    convert_edge_data_to_valid_kwargs,
-)
-from pydango.orm.query import ORMQuery, for_
-from pydango.query import AQLQuery
-from pydango.query.consts import FROM, ID, KEY, REV, TO
-from pydango.query.expressions import IteratorExpression, VariableExpression
-from pydango.query.functions import Document, Length, Merge, UnionArrays
-from pydango.query.operations import RangeExpression, TraversalDirection
-from pydango.query.options import UpsertOptions
+if TYPE_CHECKING:
+    from pydango.orm.models.base import ArangoModel
+    from pydango.orm.models.vertex import TVertexModel
 
 logger = logging.getLogger(__name__)
 
@@ -384,7 +380,7 @@ class PydangoSession:
             else:
                 model_mapping[field] = {"v": id(relation_doc), "e": id(edge_doc)}
 
-        def pydantic_traverse(model: TVertexModel, visited: set[int]):
+        def pydantic_traverse(model: "TVertexModel", visited: set[int]):
             nonlocal edge_collections
             if id(model) in visited:
                 return
@@ -523,12 +519,12 @@ class PydangoSession:
             ),
         )
 
-    async def init(self, model: type[ArangoModel]):
+    async def init(self, model: type["ArangoModel"]):
         collection = await get_or_create_collection(self.database, model)
         await self.create_indexes(collection, model)
 
     @staticmethod
-    async def create_indexes(collection: StandardCollection, model: Type[ArangoModel]):
+    async def create_indexes(collection: StandardCollection, model: Type["ArangoModel"]):
         if model.Collection.indexes:
             logger.debug("creating indexes", extra=dict(indexes=model.Collection.indexes, model=model))
         for i in model.Collection.indexes or []:
@@ -539,11 +535,11 @@ class PydangoSession:
 
     async def save(
         self,
-        document: ArangoModel,
+        document: "ArangoModel",
         strategy: UpdateStrategy = UpdateStrategy.UPDATE,
         # todo: follow_links: bool = False,
         collection_options: Union[CollectionUpsertOptions, None] = None,
-    ) -> Union[ArangoModel, TVertexModel]:
+    ) -> Union["ArangoModel", "TVertexModel"]:
         model_fields_mapping = None
         if isinstance(document, VertexModel):
             model_fields_mapping, vertices_ids, edge_ids, query = self._build_graph_query(
@@ -573,7 +569,7 @@ class PydangoSession:
 
     async def get(
         self,
-        model: Type[ArangoModel],
+        model: Type["ArangoModel"],
         key: str,
         should_raise: bool = False,
         fetch_edges: Union[set[str], bool] = False,
@@ -581,9 +577,9 @@ class PydangoSession:
         fetch_path: bool = False,
         depth: range = range(1, 1),
         prune: bool = False,
-        projection: Optional[Type[ArangoModel]] = None,
+        projection: Optional[Type["ArangoModel"]] = None,
         return_raw: bool = False,
-    ) -> Optional[Union[TVertexModel, ArangoModel]]:
+    ) -> Optional[Union["TVertexModel", "ArangoModel"]]:
         collection = model.Collection.name
         _id = f"{collection}/{key}"
         d = Document(_id)

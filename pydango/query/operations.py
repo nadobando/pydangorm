@@ -41,6 +41,11 @@ from pydango.query.options import (
 )
 from pydango.query.utils import Compilable
 
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
+
 if TYPE_CHECKING:
     from pydango.query.query import AQLQuery
 
@@ -61,10 +66,6 @@ AUTOMATIC_TYPES = (
     CollectionExpression,
     # Aliased,
 )
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
 
 
 class ForOperation(Operation):

@@ -1,6 +1,8 @@
 import datetime
 
-from pydango.orm.models import Aliased, VertexCollectionConfig, VertexModel
+from pydango.orm.models import VertexModel
+from pydango.orm.models.base import Aliased
+from pydango.orm.models.vertex import VertexCollectionConfig
 from pydango.orm.query import ORMQuery
 from pydango.query.expressions import (
     NEW,

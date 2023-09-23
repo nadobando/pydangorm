@@ -7,14 +7,10 @@ from _pytest.fixtures import FixtureRequest
 from pydiction import ANY_NOT_NONE, Contains, Matcher
 
 from pydango.connection.session import PydangoSession
-from pydango.orm.models import (
-    BaseArangoModel,
-    EdgeCollectionConfig,
-    EdgeModel,
-    Relation,
-    VertexCollectionConfig,
-    VertexModel,
-)
+from pydango.orm.models import BaseArangoModel, EdgeModel, VertexModel
+from pydango.orm.models.base import Relation
+from pydango.orm.models.edge import EdgeCollectionConfig
+from pydango.orm.models.vertex import VertexCollectionConfig
 
 
 class Post(VertexModel):

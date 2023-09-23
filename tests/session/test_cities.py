@@ -9,14 +9,10 @@ from pydiction import ANY_NOT_NONE, Matcher
 
 from pydango.connection.session import PydangoSession
 from pydango.index import PersistentIndex
-from pydango.orm.models import (
-    BaseArangoModel,
-    EdgeCollectionConfig,
-    EdgeModel,
-    Relation,
-    VertexCollectionConfig,
-    VertexModel,
-)
+from pydango.orm.models import EdgeModel, VertexModel
+from pydango.orm.models.base import BaseArangoModel, Relation
+from pydango.orm.models.edge import EdgeCollectionConfig
+from pydango.orm.models.vertex import VertexCollectionConfig
 from pydango.query.consts import ID
 
 # from tests.utils import find_dict_diffs, ANY_NOT_NONE

@@ -1,39 +1,22 @@
 import logging
 import sys
-from typing import Optional, Sequence, Type, Union, cast, overload
-
-from pydango.orm.encoders import jsonable_encoder
-
-if sys.version_info >= (3, 10):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast, overload
 
 from pydantic import BaseModel
 from pydantic.utils import lenient_issubclass
 
-from pydango.orm.models import (
-    Aliased,
-    BaseArangoModel,
-    LazyProxy,
-    ModelFieldExpression,
-    save_dict,
-)
+from pydango.orm.encoders import jsonable_encoder
+from pydango.orm.models.base import Aliased, BaseArangoModel, LazyProxy
+from pydango.orm.models.fields import ModelFieldExpression
+from pydango.orm.models.utils import save_dict
 from pydango.query.expressions import (
     BinaryExpression,
-    BinaryLogicalExpression,
-    BindableExpression,
     CollectionExpression,
-    ConditionExpression,
-    Expression,
     FieldExpression,
-    IterableExpression,
     IteratorExpression,
     LiteralExpression,
-    ObjectExpression,
     ReturnableMixin,
     SortExpression,
-    VariableExpression,
 )
 from pydango.query.operations import (
     ForParams,
@@ -49,14 +32,30 @@ from pydango.query.options import (
 )
 from pydango.query.query import AQLQuery, TraverseIterators
 
+if sys.version_info >= (3, 10):
+    from typing import Self
+else:
+    from typing_extensions import Self, TypeAlias
+
+if TYPE_CHECKING:
+    from pydango.orm.models.base import ArangoModel
+    from pydango.query.expressions import (
+        BinaryLogicalExpression,
+        BindableExpression,
+        ConditionExpression,
+        Expression,
+        IterableExpression,
+        ObjectExpression,
+        VariableExpression,
+    )
 logger = logging.getLogger(__name__)
 
-ORMForParams = Union[ForParams, Type[BaseArangoModel], Aliased[BaseArangoModel]]
+ORMForParams: TypeAlias = Union[ForParams, Type[BaseArangoModel], Aliased[BaseArangoModel]]
 IMPLICIT_COLLECTION_ERROR = "you must specify collection when the collection cannot be implicitly resolved"
 MULTIPLE_COLLECTIONS_RESOLVED = "multiple collections resolved"
 
 
-def _bind(query: "ORMQuery", node: Expression):
+def _bind(query: "ORMQuery", node: "Expression"):
     if isinstance(node, FieldExpression):
         if node.parent and isinstance(node.parent, type) and issubclass(node.parent, BaseArangoModel):
             node.parent = query.orm_bound_vars[cast(Type[BaseArangoModel], node.parent)]
@@ -66,8 +65,8 @@ def _bind(query: "ORMQuery", node: Expression):
         node.parent = query.orm_bound_vars[node.parent]
 
 
-def _find_models_and_bind(condition: Union[ConditionExpression, BinaryLogicalExpression], query: "ORMQuery"):
-    stack: list[Union[BinaryExpression, Expression]] = [condition]
+def _find_models_and_bind(condition: Union["ConditionExpression", "BinaryLogicalExpression"], query: "ORMQuery"):
+    stack: list[Union[BinaryExpression, "Expression"]] = [condition]
     while stack:
         current = stack.pop()
         if isinstance(current, (LiteralExpression, FieldExpression)):
@@ -90,12 +89,16 @@ class ORMQuery(AQLQuery):
     def __init__(self, parent: Optional[AQLQuery] = None):
         super().__init__(parent)
         # self.bind_parameter_to_sequence = {}
-        self.orm_bound_vars: dict[Union[Type[BaseArangoModel], Aliased, ModelFieldExpression], VariableExpression] = {}
+        self.orm_bound_vars: dict[Union[Type[BaseArangoModel], Aliased, "ModelFieldExpression"], VariableExpression] = (
+            {}
+        )
 
     def for_(
         self,
         collection_or_variable: ORMForParams,
-        in_: Optional[Union[AQLQuery, IterableExpression, list, VariableExpression, list[VariableExpression]]] = None,
+        in_: Optional[
+            Union[AQLQuery, "IterableExpression", list, "VariableExpression", list["VariableExpression"]]
+        ] = None,
     ) -> Self:
         if lenient_issubclass(collection_or_variable, BaseArangoModel):
             model = cast(BaseArangoModel, collection_or_variable)
@@ -135,7 +138,7 @@ class ORMQuery(AQLQuery):
 
         return self
 
-    def filter(self, condition: Union[ConditionExpression, BinaryLogicalExpression]) -> Self:
+    def filter(self, condition: Union["ConditionExpression", "BinaryLogicalExpression"]) -> Self:
         _find_models_and_bind(condition, self)
         super().filter(condition)
         return self
@@ -151,19 +154,20 @@ class ORMQuery(AQLQuery):
         super().sort(*sort_list)
         return self
 
+    # noinspection PyMethodOverriding
     @overload
-    def insert(self, doc: BaseArangoModel) -> Self:
+    def insert(self, doc: "ArangoModel") -> Self:
         ...
 
     @overload
     def insert(
-        self, doc: Union[dict, ObjectExpression, VariableExpression], collection: Union[str, CollectionExpression]
+        self, doc: Union[dict, "ObjectExpression", "VariableExpression"], collection: Union[str, CollectionExpression]
     ) -> Self:
         ...
 
     def insert(
         self,
-        doc: Union[dict, ObjectExpression, BaseArangoModel, VariableExpression],
+        doc: Union[dict, "ObjectExpression", BaseArangoModel, "VariableExpression"],
         collection: Optional[Union[str, CollectionExpression]] = None,
     ) -> Self:
         if isinstance(doc, (BaseArangoModel, LazyProxy)):
@@ -182,7 +186,7 @@ class ORMQuery(AQLQuery):
     @overload
     def remove(
         self,
-        expression: Union[dict, LiteralExpression, FieldExpression, VariableExpression, ObjectExpression, str],
+        expression: Union[dict, LiteralExpression, FieldExpression, "VariableExpression", "ObjectExpression", str],
         collection: Union[str, CollectionExpression],
         *,
         options: Optional[RemoveOptions] = None,
@@ -192,7 +196,7 @@ class ORMQuery(AQLQuery):
     def remove(
         self,
         expression: Union[
-            BaseArangoModel, dict, LiteralExpression, FieldExpression, VariableExpression, ObjectExpression, str
+            BaseArangoModel, dict, LiteralExpression, FieldExpression, "VariableExpression", "ObjectExpression", str
         ],
         collection: Union[str, CollectionExpression, None] = None,
         *,
@@ -206,7 +210,7 @@ class ORMQuery(AQLQuery):
 
         return super().remove(expression, collection, options=options)
 
-    def bind_parameter(self, parameter: BindableExpression, override_var_name: Optional[str] = None) -> str:
+    def bind_parameter(self, parameter: "BindableExpression", override_var_name: Optional[str] = None) -> str:
         return super().bind_parameter(parameter)
 
     @overload
@@ -249,8 +253,8 @@ class ORMQuery(AQLQuery):
     @overload
     def replace(
         self,
-        key: Union[str, dict, ObjectExpression],
-        doc: Union[dict, ObjectExpression],
+        key: Union[str, dict, "ObjectExpression"],
+        doc: Union[dict, "ObjectExpression"],
         collection: Union[str, CollectionExpression],
         *,
         options: Optional[ReplaceOptions] = None,
@@ -259,8 +263,8 @@ class ORMQuery(AQLQuery):
 
     def replace(
         self,
-        key: Union[str, dict, ObjectExpression, BaseArangoModel],
-        doc: Union[dict, ObjectExpression, BaseArangoModel],
+        key: Union[str, dict, "ObjectExpression", BaseArangoModel],
+        doc: Union[dict, "ObjectExpression", BaseArangoModel],
         collection: Union[str, CollectionExpression, None] = None,
         *,
         options: Optional[ReplaceOptions] = None,
@@ -283,9 +287,9 @@ class ORMQuery(AQLQuery):
     def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: BaseArangoModel,
-        insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
+        insert: Union[dict, BaseModel, "ObjectExpression", BaseArangoModel, "VariableExpression"],
         *,
-        replace: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
+        replace: Union[dict, BaseModel, "ObjectExpression", BaseArangoModel, "VariableExpression"],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
@@ -294,9 +298,9 @@ class ORMQuery(AQLQuery):
     def upsert(  # noqa: PyMethodOverriding
         self,
         filter_: BaseArangoModel,
-        insert: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
+        insert: Union[dict, BaseModel, "ObjectExpression", BaseArangoModel, "VariableExpression"],
         *,
-        update: Union[dict, BaseModel, ObjectExpression, BaseArangoModel, VariableExpression],
+        update: Union[dict, BaseModel, "ObjectExpression", BaseArangoModel, "VariableExpression"],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
@@ -304,11 +308,11 @@ class ORMQuery(AQLQuery):
     @overload
     def upsert(  # noqa: PyMethodOverriding
         self,
-        filter_: Union[dict, BaseModel, ObjectExpression, VariableExpression],
-        insert: Union[dict, BaseModel, ObjectExpression, VariableExpression],
+        filter_: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
+        insert: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
         collection: Union[str, CollectionExpression],
         *,
-        replace: Union[dict, BaseModel, ObjectExpression, VariableExpression],
+        replace: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
@@ -316,23 +320,23 @@ class ORMQuery(AQLQuery):
     @overload
     def upsert(  # noqa: PyMethodOverriding
         self,
-        filter_: Union[dict, BaseModel, ObjectExpression, VariableExpression],
-        insert: Union[dict, BaseModel, ObjectExpression, VariableExpression],
+        filter_: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
+        insert: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
         collection: Union[str, CollectionExpression],
         *,
-        update: Union[dict, BaseModel, ObjectExpression, VariableExpression],
+        update: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
         options: Optional[UpsertOptions] = None,
     ) -> Self:
         ...
 
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression, BaseModel, BaseArangoModel, VariableExpression],
-        insert: Union[dict, ObjectExpression, BaseModel, BaseArangoModel, VariableExpression],
+        filter_: Union[dict, "ObjectExpression", BaseModel, BaseArangoModel, "VariableExpression"],
+        insert: Union[dict, "ObjectExpression", BaseModel, BaseArangoModel, "VariableExpression"],
         collection: Union[str, CollectionExpression, None] = None,
         **kwargs,
-        # update: Union[dict,ObjectExpression, BaseModel, BaseArangoModel, None] = None,
-        # replace: Union[dict, ObjectExpression, BaseModel,BaseArangoModel, None] = None,
+        # update: Union[dict,"ObjectExpression", BaseModel, BaseArangoModel, None] = None,
+        # replace: Union[dict, "ObjectExpression", BaseModel,BaseArangoModel, None] = None,
         # options: Optional[UpsertOptions] = None,
     ) -> Self:
         update = kwargs.get("update")
@@ -370,11 +374,11 @@ class ORMQuery(AQLQuery):
         super().upsert(filter_, insert, collection, **kwargs)
         return self
 
-    def return_(self, return_expr: Union[Type[BaseArangoModel], Aliased, ReturnableMixin, dict]) -> Self:
+    def return_(self, return_expr: Union[Type[BaseArangoModel], Aliased, "ReturnableMixin", dict]) -> Self:
         if isinstance(return_expr, type) and issubclass(return_expr, (BaseArangoModel,)):
             return_expr = self.orm_bound_vars[return_expr]
         elif isinstance(return_expr, Aliased):
-            return_expr = cast(ReturnableMixin, self.orm_bound_vars[return_expr])
+            return_expr = cast("ReturnableMixin", self.orm_bound_vars[return_expr])
 
         super().return_(return_expr)
         return self
@@ -386,7 +390,7 @@ class ORMQuery(AQLQuery):
         self,
         iterators: TraverseIterators,
         edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
-        start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
+        start: Union["LiteralExpression", "VariableExpression", FieldExpression, str],
         depth: Union[RangeExpression, range, tuple[int, int]],
         direction: TraversalDirection,
     ):
@@ -396,13 +400,13 @@ class ORMQuery(AQLQuery):
 
 def for_(
     collection_or_variable: ORMForParams,
-    in_: Optional[Union[IterableExpression, VariableExpression, list[VariableExpression], list]] = None,
+    in_: Optional[Union["IterableExpression", "VariableExpression", list["VariableExpression"], list]] = None,
 ) -> ORMQuery:
     return ORMQuery().for_(collection_or_variable, in_)
 
 
 def traverse(
     collection_or_variable: ORMForParams,
-    in_: Optional[Union[IterableExpression, VariableExpression, list[VariableExpression], list]] = None,
+    in_: Optional[Union["IterableExpression", "VariableExpression", list["VariableExpression"], list]] = None,
 ) -> ORMQuery:
     return ORMQuery().for_(collection_or_variable, in_)

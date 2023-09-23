@@ -3,18 +3,9 @@ import logging
 import sys
 from typing import Any, Dict, List, Optional, Sequence, Union, overload
 
-# from pydango.orm.models import BaseArangoModel, save_dict
-
-if sys.version_info >= (3, 10):
-    from typing import Self, TypeAlias
-else:
-    from typing_extensions import Self, TypeAlias
-
 from aioarango.database import Database
 
 from pydango.orm.encoders import jsonable_encoder
-
-# if TYPE_CHECKING:
 from pydango.query.expressions import (
     BindableExpression,
     CollectionExpression,
@@ -61,6 +52,11 @@ from pydango.query.options import (
     UpdateOptions,
     UpsertOptions,
 )
+
+if sys.version_info >= (3, 10):
+    from typing import Self, TypeAlias
+else:
+    from typing_extensions import Self, TypeAlias
 
 logger = logging.getLogger(__name__)
 

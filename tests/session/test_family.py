@@ -7,14 +7,10 @@ from pydiction import ANY_NOT_NONE, Contains, Matcher
 
 from pydango.connection.session import PydangoSession
 from pydango.index import PersistentIndex
-from pydango.orm.models import (
-    BaseArangoModel,
-    EdgeCollectionConfig,
-    EdgeModel,
-    Relation,
-    VertexCollectionConfig,
-    VertexModel,
-)
+from pydango.orm.models import BaseArangoModel, EdgeModel, VertexModel
+from pydango.orm.models.base import Relation
+from pydango.orm.models.edge import EdgeCollectionConfig
+from pydango.orm.models.vertex import VertexCollectionConfig
 
 
 class Person(VertexModel):
