@@ -642,7 +642,7 @@ class CollectOperation(Operation):
                 if assignment.variable.var_name:
                     self.query_ref.__used_vars__.add(assignment.variable.var_name)
 
-        for param in [into or [], with_count_into or []]:
+        for param in [into, with_count_into]:
             if isinstance(param, VariableExpression):
                 if param.var_name:
                     self.query_ref.__used_vars__.add(param.var_name)

@@ -84,4 +84,4 @@ async def database(client: ArangoClient) -> AsyncFixture[StandardDatabase]:
 
     db = await get_or_create_db(client, "pydango")
     yield db
-    # await (await client.db("_system")).delete_database("pydango")
+    await (await client.db("_system")).delete_database("pydango")

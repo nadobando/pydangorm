@@ -3,17 +3,28 @@ import logging
 import sys
 from collections import OrderedDict, defaultdict, namedtuple
 from enum import Enum
-from typing import Any, Iterator, Optional, Type, Union, cast, get_args, get_origin
+from typing import (
+    Any,
+    DefaultDict,
+    Iterator,
+    Optional,
+    Sequence,
+    Type,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+)
 
 from aioarango import AQLQueryExecuteError
 from pydantic import BaseModel
-from pydantic.fields import ModelField
 
 from pydango.connection import DALI_SESSION_KW
 from pydango.orm.relations import LIST_TYPES
-from pydango.orm.types import ArangoModel, TVertexModel
+from pydango.query.query import TraverseIterators
 from pydango.query.utils import new
-from pydango.utils import get_collection_from_document
+
+# from pydango.utils import get_collection_from_document
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -27,10 +38,16 @@ from indexed import IndexedOrderedDict  # type: ignore[attr-defined]
 from pydango import index
 from pydango.connection.utils import get_or_create_collection
 from pydango.orm.consts import EDGES
-from pydango.orm.models import BaseArangoModel, EdgeModel, VertexModel
-from pydango.orm.proxy import LazyProxy
+from pydango.orm.models import (
+    ArangoModel,
+    BaseArangoModel,
+    EdgeModel,
+    LazyProxy,
+    TVertexModel,
+    VertexModel,
+    convert_edge_data_to_valid_kwargs,
+)
 from pydango.orm.query import ORMQuery, for_
-from pydango.orm.utils import convert_edge_data_to_valid_kwargs
 from pydango.query import AQLQuery
 from pydango.query.consts import FROM, ID, KEY, REV, TO
 from pydango.query.expressions import IteratorExpression, VariableExpression
@@ -39,6 +56,19 @@ from pydango.query.operations import RangeExpression, TraversalDirection
 from pydango.query.options import UpsertOptions
 
 logger = logging.getLogger(__name__)
+
+
+def get_collection_from_document(obj: Union[str, dict, "ArangoModel"]) -> str:
+    _obj = None
+    if isinstance(obj, dict):
+        _obj = obj.get(ID)
+    elif isinstance(obj, BaseArangoModel):
+        _obj = obj.id
+
+    if not _obj or not isinstance(_obj, str):
+        raise ValueError("cannot parse collection")
+
+    return _obj.partition("/")[0]
 
 
 class DocumentNotFoundError(Exception):
@@ -231,10 +261,10 @@ def _bind_edge(from_model, instance, rels, to_model, vertex_collections, vertex_
 CollectionUpsertOptions: TypeAlias = dict[Union[str, Type["BaseArangoModel"]], UpsertOptions]
 ModelFieldMapping: TypeAlias = dict[int, defaultdict[str, list[tuple[int, int]]]]
 VerticesIdsMapping: TypeAlias = dict[Type[VertexModel], dict[int, int]]
-EdgesIdsMapping: TypeAlias = defaultdict[Type[EdgeModel], defaultdict[int, dict[int, int]]]
+EdgesIdsMapping: TypeAlias = dict[Type[EdgeModel], dict[int, dict[int, int]]]
 
 
-def traverse2(
+def db_traverse(
     model: VertexModel,
     visited: set,
     result,
@@ -276,10 +306,10 @@ def traverse2(
                 if isinstance(relation_doc, list):
                     z = zip(relation_doc, getattr(model.edges, field, []))
                     for vertex_doc, edge_doc in z:
-                        traverse2(vertex_doc, visited, result, model_fields_mapping, vertices_ids, edges_ids)
+                        db_traverse(vertex_doc, visited, result, model_fields_mapping, vertices_ids, edges_ids)
                 else:
                     getattr(model.edges, field)
-                    traverse2(relation_doc, visited, result, model_fields_mapping, vertices_ids, edges_ids)
+                    db_traverse(relation_doc, visited, result, model_fields_mapping, vertices_ids, edges_ids)
             else:
                 # todo: insert join relation
                 pass
@@ -299,7 +329,7 @@ def _set_edge_operational_fields(result, model_id, edges_ids, i):
 
 EdgeCollectionsMapping: TypeAlias = dict[Type[EdgeModel], IndexedOrderedDict[list[EdgeModel]]]
 EdgeVerticesIndexMapping = dict[
-    Type[EdgeModel], dict[tuple[Type[VertexModel], Type[VertexModel]], dict[int, list[int]]]
+    Type[EdgeModel], dict[int, dict[tuple[Type[VertexModel], Type[VertexModel]], list[int]]]
 ]
 
 VertexCollectionsMapping = dict[Type[VertexModel], IndexedOrderedDict[BaseArangoModel]]
@@ -354,52 +384,7 @@ class PydangoSession:
             else:
                 model_mapping[field] = {"v": id(relation_doc), "e": id(edge_doc)}
 
-        def traverse_old(model: VertexModel, visited: set[int]):
-            if id(model) in visited:
-                return
-
-            if isinstance(model, VertexModel):
-                vertex_collections.setdefault(model.__class__, IndexedOrderedDict())[id(model)] = model
-                visited.add(id(model))
-
-            models: tuple[Type[VertexModel], Optional[Type[EdgeModel]]]
-            relations = list(_group_by_relation2(model))
-            if relations:
-                for models, field in relations:
-                    edge_cls: Optional[Type[EdgeModel]] = models[1]
-                    relation_doc: ModelField = getattr(model, field)
-                    if not relation_doc:
-                        _add_model_field_to_mapping(model, field, None, None)
-                        continue
-
-                    if isinstance(relation_doc, LazyProxy):
-                        relation_doc = relation_doc.__instance__
-
-                    if model.edges:
-                        if isinstance(model.edges, dict):
-                            convert_edge_data_to_valid_kwargs(model.edges)
-                            # todo: this initiate the class edge model so it validates the edges, should we do that?
-                            model.edges = model.__fields__[EDGES].type_(**model.edges)
-
-                        if isinstance(relation_doc, list):
-                            if len(getattr(model.edges, field, [])) != len(relation_doc):
-                                raise AssertionError(f"{model.__class__.__name__} vertex edges {field} number mismatch")
-                            z = zip(relation_doc, getattr(model.edges, field, []))
-                            for vertex_doc, edge_doc in z:
-                                _prepare_relation(field, model, edge_cls, edge_doc, vertex_doc)
-                                traverse_old(vertex_doc, visited)
-                        else:
-                            edge_doc = getattr(model.edges, field)
-                            _prepare_relation(field, model, edge_cls, edge_doc, relation_doc)
-                            traverse_old(relation_doc, visited)
-                    else:
-                        # todo: insert join relation
-                        pass
-            else:
-                pass
-                # model_fields_mapping[id(model)] = {}
-
-        def traverse_new(model: VertexModel, visited: set[int]):
+        def pydantic_traverse(model: TVertexModel, visited: set[int]):
             nonlocal edge_collections
             if id(model) in visited:
                 return
@@ -411,7 +396,7 @@ class PydangoSession:
             relations = list(_group_by_relation2(model))
             if relations:
                 for relation_group in relations:
-                    relation_doc: VertexModel = getattr(model, relation_group.field)
+                    relation_doc: Union[TVertexModel, None] = getattr(model, relation_group.field)
                     if not relation_doc:
                         _add_model_field_to_mapping(model, relation_group.field, None, None)
                         continue
@@ -419,7 +404,7 @@ class PydangoSession:
                     edge_cls: Optional[Type[EdgeModel]] = relation_group.via_model
 
                     if isinstance(relation_doc, LazyProxy):
-                        relation_doc = relation_doc.__instance__
+                        relation_doc = cast(VertexModel, relation_doc.__instance__)
 
                     if model.edges:
                         if isinstance(model.edges, dict):
@@ -432,15 +417,18 @@ class PydangoSession:
                                 raise AssertionError(
                                     f"{model.__class__.__name__} vertex edges {relation_group.field} number mismatch"
                                 )
-                            z = zip(relation_doc, getattr(model.edges, relation_group.field, []))
-                            for vertex_doc, edge_doc in z:
+                            vertex_doc: VertexModel
+                            edge_doc: EdgeModel
+                            for vertex_doc, edge_doc in zip(
+                                relation_doc, getattr(model.edges, relation_group.field, [])
+                            ):
                                 _prepare_relation(relation_group.field, model, edge_cls, edge_doc, vertex_doc)
-                                traverse_new(vertex_doc, visited)
+                                pydantic_traverse(vertex_doc, visited)
 
                         else:
                             edge_doc = getattr(model.edges, relation_group.field)
                             _prepare_relation(relation_group.field, model, edge_cls, edge_doc, relation_doc)
-                            traverse_new(relation_doc, visited)
+                            pydantic_traverse(relation_doc, visited)
                     else:
                         # todo: insert join relation
                         pass
@@ -448,7 +436,7 @@ class PydangoSession:
                 pass
                 # model_fields_mapping[id(model)] = {}
 
-        traverse_new(document, _visited)
+        pydantic_traverse(document, _visited)
         return edge_collections, edge_vertex_index, vertex_collections, model_fields_mapping
 
     @classmethod
@@ -476,13 +464,6 @@ class PydangoSession:
 
         edge_let_queries = {}
 
-        def invert_edge_index(d: dict):
-            r = {}
-            for k, v in d.items():
-                for nested_key, nested_value in v.items():
-                    r.setdefault(nested_key, {})[k] = nested_value
-            return r
-
         for e, coll in edge_vertex_index.items():
             counter = 0
             edge_vars = []
@@ -494,6 +475,8 @@ class PydangoSession:
                 edge_var_name = f"{e.Collection.name}_{j + 1}"
                 edge = VariableExpression(edge_var_name)
                 query.let(edge, edge_collections[e][instance])
+                from_model: Type[VertexModel]
+                to_model: Type[VertexModel]
                 for k, ((from_model, to_model), rels) in enumerate(mapping.items()):
                     from_ = vertex_collections[from_model].keys().index(instance)
                     new_rels = [vertex_collections[to_model].keys().index(x) for x in rels]
@@ -540,17 +523,17 @@ class PydangoSession:
             ),
         )
 
-    async def init(self, model: Type[BaseArangoModel]):
+    async def init(self, model: type[ArangoModel]):
         collection = await get_or_create_collection(self.database, model)
         await self.create_indexes(collection, model)
 
     @staticmethod
-    async def create_indexes(collection, model):
+    async def create_indexes(collection: StandardCollection, model: Type[ArangoModel]):
         if model.Collection.indexes:
             logger.debug("creating indexes", extra=dict(indexes=model.Collection.indexes, model=model))
         for i in model.Collection.indexes or []:
             if isinstance(i, dict):
-                await index.mapping[i.__class__](collection, **i)
+                await index.mapping[i["type"]](collection, **i)
             else:
                 await index.mapping[i.__class__](collection, **dataclasses.asdict(i))
 
@@ -584,13 +567,13 @@ class PydangoSession:
         else:
             result = await cursor.next()
         if model_fields_mapping:
-            traverse2(cast(VertexModel, document), set(), result, model_fields_mapping, vertices_ids, edge_ids)
+            db_traverse(cast(VertexModel, document), set(), result, model_fields_mapping, vertices_ids, edge_ids)
         logger.debug("cursor stats", extra=cursor.statistics())
         return document
 
     async def get(
         self,
-        model: Type[BaseArangoModel],
+        model: Type[ArangoModel],
         key: str,
         should_raise: bool = False,
         fetch_edges: Union[set[str], bool] = False,
@@ -598,7 +581,7 @@ class PydangoSession:
         fetch_path: bool = False,
         depth: range = range(1, 1),
         prune: bool = False,
-        projection: Optional[Type[BaseArangoModel]] = None,
+        projection: Optional[Type[ArangoModel]] = None,
         return_raw: bool = False,
     ) -> Optional[Union[TVertexModel, ArangoModel]]:
         collection = model.Collection.name
@@ -606,36 +589,43 @@ class PydangoSession:
         d = Document(_id)
         doc = VariableExpression()
         main_query = ORMQuery().let(doc, d)
-        return_ = doc
+        return_: Union[VariableExpression, dict[str, VariableExpression]] = doc
+        edges: Sequence[str]
         if fetch_edges:
             if isinstance(fetch_edges, set):
-                edges = fetch_edges
+                edges = cast(Sequence[str], fetch_edges)
             else:
-                edges = tuple({i.via_model.Collection.name for i in model.__relationships__.values()})
+                _edges = []
+                for i in model.__relationships__.values():
+                    if i.via_model:
+                        _edges.append(i.via_model.Collection.name)
+                edges = _edges
 
             v = IteratorExpression("v")
             iterators = [v]
             e = IteratorExpression("e")
             iterators.append(e)
-            # if fetch_edges_data:
 
             if fetch_path:
                 p = IteratorExpression("p")
                 iterators.append(p)
             traversal_result = VariableExpression()
+
+            traversal_iterators: TraverseIterators = cast(TraverseIterators, tuple(iterators))
             traversal = (
                 ORMQuery()
-                .traverse(tuple(iterators), edges, _id, depth, TraversalDirection.OUTBOUND)
+                .traverse(traversal_iterators, edges, _id, depth, TraversalDirection.OUTBOUND)
                 .return_({"v": iterators[0], "e": iterators[1]})
             )
             main_query.let(traversal_result, traversal)
-            return_ = {"doc": return_, "edges": traversal_result}
+            return_ = {"doc": doc, "edges": traversal_result}
 
         main_query.return_(return_)
         # logger.debug(str(main_query))
         cursor = await main_query.execute(self.database)
         result = await cursor.next()
-        result, recursive = construct(result, model)
+        if issubclass(model, VertexModel):
+            result, recursive = construct(result, model)
 
         if return_raw:
             return result
@@ -710,8 +700,8 @@ def construct(traversal_result: dict, model: Type[VertexModel]):
     #                 new_d[EDGES][func.__name__] = e
     #             break
 
-    vertices = defaultdict(dict)
-    edges = {}
+    vertices: DefaultDict[str, dict[str, Any]] = defaultdict(dict)
+    edges: dict[str, dict[tuple[str, str], Union[list[dict[str, Any]], dict[str, Any]]]] = {}
     if doc:
         vertices[doc[ID]] = doc
     edge_count = 0
@@ -724,13 +714,11 @@ def construct(traversal_result: dict, model: Type[VertexModel]):
 
         if coordinate not in edges:
             edges.setdefault(edge_coll, {})[coordinate] = e
-
-        elif not isinstance(edges[coordinate], list):
-            edges.setdefault(edge_coll, {})[coordinate] = [edges[coordinate]]
-            edges[edge_coll][coordinate].append(e)
-
+        elif isinstance(edges[edge_coll][coordinate], list):
+            cast(list, edges[edge_coll][coordinate]).append(e)
         else:
-            edges[edge_coll][coordinate].append(e)
+            edges.setdefault(edge_coll, {})[coordinate] = [cast(dict[str, Any], edges[edge_coll][coordinate])]
+            cast(list, edges[edge_coll][coordinate]).append(e)
 
         edge_count += 1
     if len(traversal_result["edges"]) != edge_count:

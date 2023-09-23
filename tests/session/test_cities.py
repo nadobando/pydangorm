@@ -1,6 +1,6 @@
 import asyncio
 import datetime
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Iterable, Type
 
 import pytest
 from _pytest.fixtures import FixtureRequest
@@ -10,6 +10,7 @@ from pydiction import ANY_NOT_NONE, Matcher
 from pydango.connection.session import PydangoSession
 from pydango.index import PersistentIndex
 from pydango.orm.models import (
+    BaseArangoModel,
     EdgeCollectionConfig,
     EdgeModel,
     Relation,
@@ -138,15 +139,16 @@ def expected_person(person: Person):
 
 @pytest.fixture(scope="module", autouse=True)
 async def init_collections(session: PydangoSession):
-    await asyncio.gather(*[session.init(coll) for coll in (Person, City, LivesIn, Visited)])
+    models: Iterable[Type[BaseArangoModel]] = (Person, City, LivesIn, Visited)
+    await asyncio.gather(*[session.init(coll) for coll in models])
 
 
 @pytest.mark.run(order=1)
 @pytest.mark.asyncio
 async def test_save(matcher: Matcher, session: PydangoSession, request: FixtureRequest, person):
     p = await session.save(person)
-
-    request.config.cache.set("person_key", p.key)
+    print(p)
+    request.config.cache.set("person_key", p.key)  # type: ignore[union-attr]
     matcher.assert_declarative_object(p.dict(by_alias=True, include_edges=True), expected_person(p))
 
 
@@ -177,6 +179,7 @@ class IdProjection(VertexModel):
 
 @pytest.mark.run(order=2)
 async def test_get(matcher: Matcher, session: PydangoSession, request: FixtureRequest):
-    _id = request.config.cache.get("person_key", None)
+    _id = request.config.cache.get("person_key", None)  # type: ignore[union-attr]
     result = await session.get(Person, _id, fetch_edges=True)
+    assert result is not None
     matcher.assert_declarative_object(result.dict(by_alias=True, include_edges=True), expected_person(result))

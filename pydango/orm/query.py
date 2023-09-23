@@ -3,7 +3,6 @@ import sys
 from typing import Optional, Sequence, Type, Union, cast, overload
 
 from pydango.orm.encoders import jsonable_encoder
-from pydango.orm.fields import ModelFieldExpression
 
 if sys.version_info >= (3, 10):
     from typing import Self
@@ -13,9 +12,13 @@ else:
 from pydantic import BaseModel
 from pydantic.utils import lenient_issubclass
 
-from pydango.orm.models import BaseArangoModel, save_dict
-from pydango.orm.proxy import LazyProxy
-from pydango.orm.utils import Aliased
+from pydango.orm.models import (
+    Aliased,
+    BaseArangoModel,
+    LazyProxy,
+    ModelFieldExpression,
+    save_dict,
+)
 from pydango.query.expressions import (
     BinaryExpression,
     BinaryLogicalExpression,
@@ -44,11 +47,11 @@ from pydango.query.options import (
     UpdateOptions,
     UpsertOptions,
 )
-from pydango.query.query import AQLQuery
+from pydango.query.query import AQLQuery, TraverseIterators
 
 logger = logging.getLogger(__name__)
 
-ORMForParams = Union[ForParams, Type[BaseArangoModel], Aliased[Type[BaseArangoModel]]]
+ORMForParams = Union[ForParams, Type[BaseArangoModel], Aliased[BaseArangoModel]]
 IMPLICIT_COLLECTION_ERROR = "you must specify collection when the collection cannot be implicitly resolved"
 MULTIPLE_COLLECTIONS_RESOLVED = "multiple collections resolved"
 
@@ -381,12 +384,7 @@ class ORMQuery(AQLQuery):
 
     def traverse(
         self,
-        iterators: Union[
-            IteratorExpression,
-            tuple[IteratorExpression],
-            tuple[IteratorExpression, IteratorExpression],
-            tuple[IteratorExpression, IteratorExpression, IteratorExpression],
-        ],
+        iterators: TraverseIterators,
         edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
         start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
         depth: Union[RangeExpression, range, tuple[int, int]],

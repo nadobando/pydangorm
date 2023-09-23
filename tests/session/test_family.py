@@ -1,5 +1,5 @@
 import asyncio
-from typing import Annotated, Optional
+from typing import Annotated, Iterable, Optional, Type
 
 import pytest
 from _pytest.fixtures import FixtureRequest
@@ -8,6 +8,7 @@ from pydiction import ANY_NOT_NONE, Contains, Matcher
 from pydango.connection.session import PydangoSession
 from pydango.index import PersistentIndex
 from pydango.orm.models import (
+    BaseArangoModel,
     EdgeCollectionConfig,
     EdgeModel,
     Relation,
@@ -122,10 +123,15 @@ def test_obj():
 
 @pytest.fixture(scope="module", autouse=True)
 async def init_collections(session: PydangoSession):
-    await asyncio.gather(*[session.init(coll) for coll in (Person, Sibling)])
+    models: Iterable[Type[BaseArangoModel]] = (Person, Sibling)
+    await asyncio.gather(*[session.init(coll) for coll in models])
 
 
 def expected_person(person: Person):
+    assert person.sisters
+    assert person.brothers
+    assert person.father
+    assert person.mother
     return {
         "_id": ANY_NOT_NONE,
         "_key": ANY_NOT_NONE,
@@ -300,7 +306,7 @@ async def test_save(session: PydangoSession, request: FixtureRequest):
     ben.edges = brother_edges.copy()
 
     p = await session.save(john)
-    request.config.cache.set("person_key", p.key)
+    request.config.cache.set("person_key", p.key)  # type: ignore[union-attr]
 
     # todo: there is currently a caveat with pydantic v1 with circular references, in pydantic v2 this is resolved
     # def traverse_recursive_fields(p, recursive_fields, visited):
@@ -332,8 +338,9 @@ async def test_save(session: PydangoSession, request: FixtureRequest):
 
 @pytest.mark.run(order=2)
 async def test_get(matcher: Matcher, session: PydangoSession, request: FixtureRequest):
-    _id = request.config.cache.get("person_key", None)
+    _id = request.config.cache.get("person_key", None)  # type: ignore[union-attr]
     result = await session.get(Person, _id, fetch_edges=True)
+    assert result
     result_dict = result.dict(by_alias=True, include_edges=True)
     person = expected_person(result)
     matcher.assert_declarative_object(result_dict, person)

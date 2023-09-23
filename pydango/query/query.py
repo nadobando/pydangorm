@@ -66,6 +66,13 @@ logger = logging.getLogger(__name__)
 
 JsonType: TypeAlias = Union[None, int, str, bool, List["JsonType"], Dict[str, "JsonType"]]
 
+TraverseIterators: TypeAlias = Union[
+    IteratorExpression,
+    tuple[IteratorExpression],
+    tuple[IteratorExpression, IteratorExpression],
+    tuple[IteratorExpression, IteratorExpression, IteratorExpression],
+]
+
 
 class AQLQuery(QueryExpression):
     sep = " "
@@ -127,12 +134,7 @@ class AQLQuery(QueryExpression):
 
     def traverse(
         self,
-        iterators: Union[
-            IteratorExpression,
-            tuple[IteratorExpression],
-            tuple[IteratorExpression, IteratorExpression],
-            tuple[IteratorExpression, IteratorExpression, IteratorExpression],
-        ],
+        iterators: TraverseIterators,
         edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
         start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
         depth: Union[RangeExpression, range, tuple[int, int]],

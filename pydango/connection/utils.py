@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from aioarango.collection import StandardCollection
     from aioarango.database import StandardDatabase
 
-    from pydango.orm.models import BaseArangoModel
+    from pydango.orm.models import ArangoModel, BaseArangoModel
 
 
 @overload
@@ -23,7 +23,7 @@ async def get_or_create_collection(db: "StandardDatabase", model: str, *, edge=N
 
 
 async def get_or_create_collection(
-    db: "StandardDatabase", model: Union[str, Type["BaseArangoModel"]], *, edge: Optional[bool] = None
+    db: "StandardDatabase", model: Union[str, Type["ArangoModel"]], *, edge: Optional[bool] = None
 ) -> "StandardCollection":
     if isinstance(model, str):
         collection_name = model

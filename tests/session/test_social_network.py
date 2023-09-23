@@ -1,6 +1,6 @@
 import asyncio
 import datetime
-from typing import Annotated, List, Optional, Union
+from typing import Annotated, Any, Iterable, List, Optional, Type, Union
 
 import pytest
 from _pytest.fixtures import FixtureRequest
@@ -8,13 +8,13 @@ from pydiction import ANY_NOT_NONE, Contains, Matcher
 
 from pydango.connection.session import PydangoSession
 from pydango.orm.models import (
+    BaseArangoModel,
     EdgeCollectionConfig,
     EdgeModel,
     Relation,
     VertexCollectionConfig,
     VertexModel,
 )
-from pydango.orm.types import ArangoModel
 
 
 class Post(VertexModel):
@@ -83,9 +83,8 @@ User.update_forward_refs()
 
 @pytest.fixture(scope="module", autouse=True)
 async def init_collections(session: PydangoSession):
-    await asyncio.gather(
-        *[session.init(coll) for coll in (Post, Comment, User, Friendship, Authorship, Commentary, Like)]
-    )
+    models: Iterable[Type[BaseArangoModel]] = (Post, Comment, User, Friendship, Authorship, Commentary, Like)
+    await asyncio.gather(*[session.init(coll) for coll in models])
 
 
 @pytest.fixture()
@@ -120,7 +119,7 @@ def user():
     return user1
 
 
-def expected_user_depth1(user: VertexModel):
+def expected_user_depth1(user: VertexModel) -> dict[str, Any]:
     return {
         "_id": ANY_NOT_NONE,
         "_key": ANY_NOT_NONE,
@@ -219,9 +218,9 @@ def expected_user_depth1(user: VertexModel):
     }
 
 
-def expected_user_depth2(user: ArangoModel):
-    user = expected_user_depth1(user)
-    user.update(
+def expected_user_depth2(user: VertexModel):
+    new_user: dict[str, Any] = expected_user_depth1(user)
+    new_user.update(
         {
             "likes": Contains(
                 [
@@ -252,21 +251,22 @@ def expected_user_depth2(user: ArangoModel):
             ],
         }
     )
-    return user
+    return new_user
 
 
 @pytest.mark.run(order=1)
 @pytest.mark.asyncio
 async def test_save(matcher: Matcher, session: PydangoSession, request: FixtureRequest, user: User):
     await session.save(user)
-    request.config.cache.set("user_key", user.key)
+    request.config.cache.set("user_key", user.key)  # type: ignore[union-attr]
     matcher.assert_declarative_object(user.dict(by_alias=True, include_edges=True), expected_user_depth2(user))
 
 
 @pytest.mark.run(order=2)
 async def test_get(matcher: Matcher, session: PydangoSession, request: FixtureRequest):
-    _id = request.config.cache.get("user_key", None)
+    _id = request.config.cache.get("user_key", None)  # type: ignore[union-attr]
     result = await session.get(User, _id, fetch_edges=True, depth=range(1, 1))
+    assert result
     expected_user = expected_user_depth1(result)
     matcher.assert_declarative_object(
         result.dict(by_alias=True, include_edges=True),
@@ -277,9 +277,9 @@ async def test_get(matcher: Matcher, session: PydangoSession, request: FixtureRe
 
 @pytest.mark.run(order=2)
 async def test_get2(matcher: Matcher, session: PydangoSession, request: FixtureRequest):
-    _id = request.config.cache.get("user_key", None)
+    _id = request.config.cache.get("user_key", None)  # type: ignore[union-attr]
     result = await session.get(User, _id, fetch_edges=True, depth=range(1, 2))
-
+    assert result
     result_dict = result.dict(by_alias=True, include_edges=True)
     depth = expected_user_depth2(result)
     matcher.assert_declarative_object(result_dict, depth, check_order=False)
