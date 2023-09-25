@@ -75,9 +75,7 @@ profile = "black"
 [tool.pytest.ini_options]
 addopts = "-ra"
 asyncio_mode = "auto"
-testpaths = [
-    "tests",
-]
+
 
 [tool.bandit.assert_used]
 skips = ["tests/utils*.py", '**/test_*.py', '**/test_*.py']

@@ -81,7 +81,7 @@ jobs:
       - run: poetry install --no-interaction
       - name: test
         run: |
-          poetry run pytest --cov=pydiction --cov-report=xml:coverage.xml --junitxml=test-results/test-results.xml tests
+          poetry run pytest --cov=pydango --cov-report=xml:coverage.xml --junitxml=test-results/test-results.xml tests
 
 
       - name: Test Report
