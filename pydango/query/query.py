@@ -59,10 +59,10 @@ if TYPE_CHECKING:
         UpsertOptions,
     )
 
-if sys.version_info >= (3, 10):
-    from typing import Self, TypeAlias
-else:
+if sys.version_info < (3, 10):
     from typing_extensions import Self, TypeAlias
+else:
+    from typing import Self, TypeAlias
 
 logger = logging.getLogger(__name__)
 
