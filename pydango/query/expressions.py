@@ -372,8 +372,7 @@ class BaseArithmeticExpression(Expression, ReturnableMixin, ABC):
     """
 
 
-class UnaryArithmeticExpression(UnaryExpression, BaseArithmeticExpression):
-    ...
+class UnaryArithmeticExpression(UnaryExpression, BaseArithmeticExpression): ...
 
 
 class ArithmeticExpression(BinaryExpression, BaseArithmeticExpression):
@@ -418,8 +417,7 @@ class SubQueryExpression(Expression, ReturnableMixin):
         return f"({self.query.compile(query_ref)})"
 
 
-class ScalarSubQuery(SubQueryExpression):
-    ...
+class ScalarSubQuery(SubQueryExpression): ...
 
 
 class VectorSubQueryExpression(SubQueryExpression, IterableExpression):

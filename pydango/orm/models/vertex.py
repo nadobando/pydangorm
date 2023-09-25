@@ -118,8 +118,7 @@ class VertexModel(BaseArangoModel, Generic[TEdges], metaclass=VertexMeta):
         edges: TEdges
         __edge_to_field_mapping__: dict[Union[str, ForwardRef], list[str]] = {}
 
-    class Collection(VertexCollectionConfig):
-        ...
+    class Collection(VertexCollectionConfig): ...
 
     def __init__(self, **data: Any):
         if EDGES in data:

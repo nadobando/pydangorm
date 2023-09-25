@@ -15,8 +15,7 @@ if TYPE_CHECKING:
 
 
 @dataclass()
-class Index:
-    ...
+class Index: ...
 
 
 @dataclass()
