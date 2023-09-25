@@ -29,6 +29,7 @@ jobs:
           SKIP: no-commit-to-branch
 
   test:
+    permissions: write-all
     name: Tests
     runs-on: ubuntu-latest
     services:
@@ -78,8 +79,11 @@ jobs:
       # ensures this only runs on a cache miss.
       - run: poetry install --no-interaction --no-root
         if: steps.cache-deps.outputs.cache-hit != 'true'
+
       - run: poetry install --no-interaction
+
       - name: test
+
         run: |
           poetry run pytest --cov=pydango --cov-report=xml:coverage.xml --junitxml=test-results/test-results.xml tests
 

@@ -27,7 +27,7 @@ from pydango.query.options import (
 from pydango.query.query import AQLQuery, TraverseIterators
 
 if sys.version_info >= (3, 10):
-    from typing import Self
+    from typing import Self, TypeAlias
 else:
     from typing_extensions import Self, TypeAlias
 
