@@ -163,3 +163,4 @@ __pycache__
 .idea
 local
 stubs/*
+.ruff_cache
