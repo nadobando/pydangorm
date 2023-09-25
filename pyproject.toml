@@ -1,9 +1,10 @@
 [tool.poetry]
 name = "pydangorm"
-version = "0.1.0"
+version = "0.0.0"
 description = "pydantic based ArangoDB ODM"
 authors = ["nadobando <7695172+nadobando@users.noreply.github.com>"]
 readme = "README.md"
+packages = [{ include = "pydango" }]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"
