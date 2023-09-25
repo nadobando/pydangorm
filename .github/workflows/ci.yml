@@ -31,6 +31,16 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    services:
+      arango:
+        image: arangodb
+        ports:
+          - 8529:8529
+        env:
+          ARANGO_NO_AUTH: '1'
+
+
+
     outputs:
       release-id: ${{ steps.generate-release-id.outputs.release-id }}
     steps:
