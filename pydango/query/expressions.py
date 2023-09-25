@@ -231,6 +231,28 @@ class QueryExpression(Expression, ABC):
     sep = " "
 
 
+class RangeExpression(IterableExpression):
+    def __init__(self, start, end):
+        super().__init__()
+        self.end = end
+        self.start = start
+
+    def compile(self, query_ref: "AQLQuery"):
+        if isinstance(self.start, Expression):
+            start = self.start.compile(query_ref)
+        else:
+            start = self.start
+        if isinstance(self.end, Expression):
+            end = self.end.compile(query_ref)
+        else:
+            end = self.end
+
+        return f"{start}..{end}"
+
+    def __repr__(self):
+        return f"{self.start}..{self.end}"
+
+
 class AssignmentExpression(Expression):
     def __init__(self, variable: VariableExpression, expression: Expression):
         self.variable = variable
@@ -431,7 +453,9 @@ class FigurativeExpression(BindableExpression, ReturnableMixin, ABC):
     pass
 
 
-ListItems = Union[QueryExpression, LiteralExpression, FigurativeExpression, Mapping, Sequence, int, float, str, bool]
+ListItems: TypeAlias = Union[
+    QueryExpression, LiteralExpression, FigurativeExpression, Mapping, Sequence, int, float, str, bool
+]
 ListValues: TypeAlias = Union[
     tuple[
         ListItems,

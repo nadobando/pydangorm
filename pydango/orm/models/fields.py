@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Type, Union, cast
 
 from pydantic.fields import ModelField
 
-from pydango.orm.models.sentinel import NAO
+from pydango.orm.models.sentinel import LazyFetch
 from pydango.query.expressions import (
     Expression,
     FieldExpression,
@@ -45,7 +45,7 @@ class RelationModelField(ModelField):
         loc: "LocStr",
         cls: Optional["ModelOrDc"] = None,
     ) -> "ValidateReturn":
-        return super().validate(v, values, loc=loc, cls=cls) if v is not NAO else (v, None)
+        return super().validate(v, values, loc=loc, cls=cls) if not isinstance(v, LazyFetch) else (v, None)
 
 
 def get_pydango_field(field: ModelField, cls: Type[RelationModelField] = RelationModelField) -> RelationModelField:

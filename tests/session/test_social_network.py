@@ -254,6 +254,7 @@ def expected_user_depth2(user: VertexModel):
 @pytest.mark.asyncio
 async def test_save(matcher: Matcher, session: PydangoSession, request: FixtureRequest, user: User):
     await session.save(user)
+    print(user.id)
     request.config.cache.set("user_key", user.key)  # type: ignore[union-attr]
     matcher.assert_declarative_object(user.dict(by_alias=True, include_edges=True), expected_user_depth2(user))
 
@@ -264,6 +265,27 @@ async def test_get(matcher: Matcher, session: PydangoSession, request: FixtureRe
     result = await session.get(User, _id, fetch_edges=True, depth=range(1, 1))
     assert result
     expected_user = expected_user_depth1(result)
+    matcher.assert_declarative_object(
+        result.dict(by_alias=True, include_edges=True),
+        expected_user,
+        check_order=False,
+    )
+
+
+@pytest.mark.run(order=2)
+async def test_get_lazy_proxy_fetch(matcher: Matcher, session: PydangoSession, request: FixtureRequest):
+    _id = request.config.cache.get("user_key", None)  # type: ignore[union-attr]
+    result = await session.get(User, _id, fetch_edges=True, depth=range(1, 1))
+    assert result
+
+    await result.posts[0].comments.fetch()  # type: ignore
+
+    expected_user = expected_user_depth1(result)
+
+    expected_posts_comments = [{"_id": ANY_NOT_NONE, "_key": ANY_NOT_NONE, "_rev": ANY_NOT_NONE, "text": "Great post!"}]
+    matcher.assert_declarative_object(result.dict(by_alias=True)["posts"][0]["comments"], expected_posts_comments)
+    if result.posts:
+        result.posts[0].comments = None
     matcher.assert_declarative_object(
         result.dict(by_alias=True, include_edges=True),
         expected_user,

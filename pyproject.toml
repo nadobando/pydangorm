@@ -2,7 +2,7 @@
 name = "pydangorm"
 version = "0.1.0"
 description = "pydantic based ArangoDB ODM"
-authors = ["nadobando"]
+authors = ["nadobando <7695172+nadobando@users.noreply.github.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -74,9 +74,9 @@ profile = "black"
 [tool.pytest.ini_options]
 addopts = "-ra"
 asyncio_mode = "auto"
-#testpaths = [
-#    "tests",
-#]
+testpaths = [
+    "tests",
+]
 
 [tool.bandit.assert_used]
 skips = ["tests/utils*.py", '**/test_*.py', '**/test_*.py']
@@ -106,3 +106,22 @@ module = [
     "indexed"
 ]
 ignore_missing_imports = true
+
+
+[tool.semantic_release]
+match = "main"
+prerelease = false
+version_variables = [
+    "pydango/__init__.py:__version__",
+]
+version_toml = [
+    "pyproject.toml:tool.poetry.version",
+]
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    "^ci:.*",
+    "^(?!feat:|fix:|perf:|refactor:).*$"
+]
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = false

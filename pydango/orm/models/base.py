@@ -18,9 +18,9 @@ from typing import (
     get_origin,
 )
 
-from pydantic import BaseConfig, ConfigError, Field, PrivateAttr
-from pydantic.fields import SHAPE_SINGLETON, ModelField, Undefined
-from pydantic.main import BaseModel, ModelMetaclass
+from pydantic import BaseConfig, ConfigError, Field
+from pydantic.fields import SHAPE_SINGLETON, ModelField, PrivateAttr, Undefined
+from pydantic.main import BaseModel, ModelMetaclass, object_setattr
 from pydantic.typing import resolve_annotations
 
 from pydango.connection import DALI_SESSION_KW
@@ -33,7 +33,7 @@ from pydango.orm.models.fields import (
     get_pydango_field,
 )
 from pydango.orm.models.relations import Relationship
-from pydango.orm.models.sentinel import NAO
+from pydango.orm.models.sentinel import LazyFetch
 from pydango.orm.models.shapes import LIST_SHAPES
 from pydango.orm.utils import evaluate_forward_ref
 from pydango.query.consts import ID, KEY, REV
@@ -44,7 +44,6 @@ if TYPE_CHECKING:
     from pydantic.typing import AbstractSet, DictStrAny, MappingIntStrAny
 
     from pydango.connection.session import PydangoSession
-    from pydango.orm.models.sentinel import NotAnObject
     from pydango.orm.models.types import RelationshipFields, Relationships
     from pydango.orm.models.vertex import TVertexModel
 
@@ -136,12 +135,15 @@ class Relation(Generic[ArangoModel]):
 
 class LazyProxy(Generic[ArangoModel]):
     _initialized: bool = False
-    __instance__: Union[ArangoModel, "NotAnObject"]
+    __instance__: Union[ArangoModel, "LazyFetch"]
 
-    def __init__(self, instance: Union[ArangoModel, "NotAnObject"], field, session: Optional["PydangoSession"]):
+    def __init__(
+        self, instance: Union[ArangoModel, "LazyFetch"], field, parent: ArangoModel, session: Optional["PydangoSession"]
+    ):
+        self.parent = parent
         self.session = session
-        self._field = field
-        if instance is not NAO:
+        self._relation_field = field
+        if not isinstance(instance, LazyFetch):
             self._initialized = True
 
         self.__instance__ = instance
@@ -154,12 +156,11 @@ class LazyProxy(Generic[ArangoModel]):
             if item in ["dict"]:
                 return partial(jsonable_encoder, obj=self.__instance__)
 
-            # if item in getattr(getattr(self, '_instance'), item):
         attr = getattr(self.__instance__, item, None)
         if attr:
             return attr
         else:
-            return getattr(self._field.type_, item)
+            return getattr(self._relation_field.type_, item)
 
     def __repr__(self):
         return repr(self.__instance__)
@@ -168,17 +169,31 @@ class LazyProxy(Generic[ArangoModel]):
         if self:
             return self.__instance__[item]
         raise AttributeError(
-            "you are attempting to access "
-            f"{self._field.type_.__name__} via {self._field.name} which is not initialized use fetch"
+            f"you are attempting to access {self._relation_field.field.type_.__name__} via"
+            f" {self._relation_field.field.name} which is not initialized yet, use fetch"
         )
 
     def __bool__(self):
         return self._initialized and bool(self.__instance__)
 
-    def fetch(self):
-        self.session.get(
-            self._field.type_,
+    async def fetch(
+        self,
+    ):
+        if not self.session:
+            raise "Kusomo"
+
+        model = await self.session.get(
+            self.parent.__class__,
+            # self._relation_field.field.type_,
+            self.parent.key,
+            fetch_edges={self._relation_field.via_model.Collection.name},
+            depth=range(1, 1),
         )
+        model = getattr(model, self._relation_field.field.name)
+        setattr(self.parent, self._relation_field.field.name, model)
+        self.__instance__ = model
+        self._initialized = True
+        return model
 
     def compile(self, query_ref):
         return ObjectExpression(self.dict()).compile(query_ref)
@@ -191,6 +206,7 @@ class DocFieldDescriptor(Generic[FieldType]):
     def __init__(self, field: ModelField, relation: Optional[Relationship] = None):
         self.relation = relation
         self.field = field
+        self._proxy: Optional[LazyProxy] = None
 
     def __set__(self, instance, value: FieldType):
         raise AssertionError()
@@ -198,18 +214,23 @@ class DocFieldDescriptor(Generic[FieldType]):
 
     def __get__(
         self, instance: Optional[ArangoModel], owner: Type["TVertexModel"]
-    ) -> Union[LazyProxy[ArangoModel], ModelFieldExpression, None]:
+    ) -> Union[LazyProxy[ArangoModel], ModelFieldExpression, FieldType, None]:
         if not instance and self.field.name in owner.__fields__.keys():
             return ModelFieldExpression(self.field.name, owner)
+        if instance:
+            field_value = instance.__dict__.get(self.field.name)
+            if self.field.name in instance.__fields_set__:
+                return field_value
 
-        field_value = instance.__dict__.get(self.field.name)
-        if field_value is not None:
-            return field_value
+            if self._proxy:
+                return self._proxy
 
-        if self.relation:
-            return LazyProxy[owner](  # type: ignore[valid-type]
-                field_value, self.field, getattr(instance, DALI_SESSION_KW, None)
-            )
+            if self.relation:
+                session = getattr(instance, DALI_SESSION_KW, None)
+                self._proxy = LazyProxy(field_value, self.relation, instance, session)
+                return self._proxy  # type: ignore[valid-type]
+        if not instance:
+            raise ValueError("something happened open an issue :(")
         return None
 
     def __set_name__(self, owner, name):
@@ -311,7 +332,7 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
     key: Optional[str] = Field(None, alias=KEY)
     rev: Optional[str] = Field(None, alias=REV)
 
-    __dali__session__: Optional["PydangoSession"] = PrivateAttr()
+    __session__: Optional["PydangoSession"] = PrivateAttr()
 
     if TYPE_CHECKING:
         __relationships__: Relationships = {}
@@ -325,6 +346,14 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
 
     class Collection(CollectionConfig):
         ...
+
+    def __init__(__pydantic_self__, **data: Any):
+        super().__init__(**data)
+        object_setattr(__pydantic_self__, "__session__", data.get(DALI_SESSION_KW))
+
+    # @property
+    # def session(self):
+    #     return self._session
 
     @classmethod
     def _decompose_class(cls: Type["Model"], obj: Any) -> Union["GetterDict", dict]:  # type: ignore[override]
@@ -354,20 +383,37 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
 
     @classmethod
     def from_orm(cls: Type[ArangoModel], obj: Any, *, session=None) -> ArangoModel:
+        obj[DALI_SESSION_KW] = session
         for field_name, field in cls.__relationships_fields__.items():
-            exists_in_orm = obj.get(field_name, None)
+            exists_in_orm = field_name in obj and obj.get(field_name, None)
             if exists_in_orm:
+                if isinstance(exists_in_orm, list):
+                    for i, v in enumerate(exists_in_orm):
+                        exists_in_orm[i][DALI_SESSION_KW] = session
+                else:
+                    exists_in_orm[DALI_SESSION_KW] = session
+
                 obj[field_name] = exists_in_orm
+
                 continue
             if field.required:
-                obj[field_name] = NAO
+                obj[field_name] = LazyFetch(session, obj["_id"])
+            else:
+                print("field not set", field_name)
+
         try:
             obj = cast(Type[ArangoModel], super()).from_orm(obj)
         except ConfigError as e:
             raise e
-        obj.__dali__session__ = session
+
+        # for field_name, field in cls.__relationships_fields__.items():
+        #     setattr( getattr(obj,field_name),'__dali_session__',session)
         # object_setattr(obj, DALI_SESSION_KW, session)
         return obj
+
+    # @classmethod
+    # def validate(cls: Type['Model'], value: Any) -> 'Model':
+    #     return cls.from_orm(value)
 
     @classmethod
     def update_forward_refs(cls, **localns: Any) -> None:

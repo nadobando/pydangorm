@@ -1,6 +1,10 @@
-class NotAnObject:
-    def __repr__(self):
-        return "NAO"
+import dataclasses
+
+# NOT_SET = LazyFetched()
 
 
-NAO = NotAnObject()
+@dataclasses.dataclass
+class LazyFetch:
+    def __init__(self, session, instance):
+        self.instance = instance
+        self.session = session

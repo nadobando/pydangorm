@@ -8,11 +8,10 @@ else:
     from typing_extensions import TypeAlias
 
 from aioarango.collection import Collection
-from aioarango.result import Result
-from aioarango.typings import Json
 
 if TYPE_CHECKING:
-    from aioarango.typings import Fields
+    from aioarango.result import Result
+    from aioarango.typings import Fields, Json
 
 
 @dataclass()
@@ -75,7 +74,7 @@ class TTLIndex(Index):
 
 Indexes: TypeAlias = Union[GeoIndex, HashIndex, SkipListIndex, FullTextIndex, PersistentIndex, TTLIndex]
 
-mapping: dict[Type[Indexes], Callable[..., Awaitable[Result[Json]]]] = {
+mapping: dict[Type[Indexes], Callable[..., Awaitable["Result[Json]"]]] = {
     GeoIndex: Collection.add_geo_index,
     HashIndex: Collection.add_hash_index,
     SkipListIndex: Collection.add_skiplist_index,

@@ -305,7 +305,9 @@ def db_traverse(
                         db_traverse(vertex_doc, visited, result, model_fields_mapping, vertices_ids, edges_ids)
                 else:
                     getattr(model.edges, field)
-                    db_traverse(relation_doc, visited, result, model_fields_mapping, vertices_ids, edges_ids)
+                    db_traverse(
+                        cast(VertexModel, relation_doc), visited, result, model_fields_mapping, vertices_ids, edges_ids
+                    )
             else:
                 # todo: insert join relation
                 pass
@@ -589,7 +591,7 @@ class PydangoSession:
         edges: Sequence[str]
         if fetch_edges:
             if isinstance(fetch_edges, set):
-                edges = cast(Sequence[str], fetch_edges)
+                edges = cast(Sequence[str], tuple(fetch_edges))
             else:
                 _edges = []
                 for i in model.__relationships__.values():
@@ -617,11 +619,16 @@ class PydangoSession:
             return_ = {"doc": doc, "edges": traversal_result}
 
         main_query.return_(return_)
-        # logger.debug(str(main_query))
+
         cursor = await main_query.execute(self.database)
         result = await cursor.next()
+        if not result:
+            raise DocumentNotFoundError(_id)
+        if fetch_edges and not result.get("doc"):
+            raise DocumentNotFoundError(_id)
+
         if issubclass(model, VertexModel):
-            result, recursive = construct(result, model)
+            result, recursive = graph_to_documents(result, model)
 
         if return_raw:
             return result
@@ -674,7 +681,7 @@ def traverse_model_and_map(pydantic_model: Type[BaseModel], variable: VariableEx
     return result
 
 
-def construct(traversal_result: dict, model: Type[VertexModel]):
+def graph_to_documents(traversal_result: dict, model: Type[VertexModel]):
     doc = traversal_result["doc"]
 
     # for relation in traversal_result["edges"]:

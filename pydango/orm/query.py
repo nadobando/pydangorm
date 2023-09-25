@@ -18,12 +18,6 @@ from pydango.query.expressions import (
     ReturnableMixin,
     SortExpression,
 )
-from pydango.query.operations import (
-    ForParams,
-    RangeExpression,
-    SortParams,
-    TraversalDirection,
-)
 from pydango.query.options import (
     RemoveOptions,
     ReplaceOptions,
@@ -46,11 +40,14 @@ if TYPE_CHECKING:
         Expression,
         IterableExpression,
         ObjectExpression,
+        RangeExpression,
         VariableExpression,
     )
+    from pydango.query.operations import ForParams, SortParams, TraversalDirection
+
 logger = logging.getLogger(__name__)
 
-ORMForParams: TypeAlias = Union[ForParams, Type[BaseArangoModel], Aliased[BaseArangoModel]]
+ORMForParams: TypeAlias = Union["ForParams", Type[BaseArangoModel], Aliased[BaseArangoModel]]
 IMPLICIT_COLLECTION_ERROR = "you must specify collection when the collection cannot be implicitly resolved"
 MULTIPLE_COLLECTIONS_RESOLVED = "multiple collections resolved"
 
@@ -143,7 +140,7 @@ class ORMQuery(AQLQuery):
         super().filter(condition)
         return self
 
-    def sort(self, *sort_list: SortParams) -> Self:
+    def sort(self, *sort_list: "SortParams") -> Self:
         for i in range(len(sort_list)):
             sort = sort_list[i]
             if isinstance(sort, SortExpression) and isinstance(sort.field, ModelFieldExpression):
@@ -391,8 +388,8 @@ class ORMQuery(AQLQuery):
         iterators: TraverseIterators,
         edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
         start: Union["LiteralExpression", "VariableExpression", FieldExpression, str],
-        depth: Union[RangeExpression, range, tuple[int, int]],
-        direction: TraversalDirection,
+        depth: Union["RangeExpression", range, tuple[int, int]],
+        direction: "TraversalDirection",
     ):
         return super().traverse(iterators, edges, start, depth, direction)
         # return self

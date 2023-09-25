@@ -10,11 +10,11 @@ from pydango.query.expressions import (
     ObjectExpression,
     QueryExpression,
     ReturnableMixin,
-    VariableExpression,
 )
 
 if TYPE_CHECKING:
     from pydango.query import AQLQuery
+    from pydango.query.expressions import VariableExpression
 
 
 class BaseFunctionExpression(Expression):
@@ -291,7 +291,7 @@ class Slice(FunctionExpression, IterableExpression, ArrayFunctionMixin):
 class UnionArrays(FunctionExpression, IterableExpression, ArrayFunctionMixin):
     name = "UNION"
 
-    def __init__(self, *arrays: Union[ListExpression, VariableExpression]):
+    def __init__(self, *arrays: Union[ListExpression, "VariableExpression"]):
         super().__init__(*arrays)
 
 
