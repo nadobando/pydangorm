@@ -1,5 +1,0 @@
-[installer]
-no-binary = ["pydantic"]
-
-#[installer]
-#no-binary = [":all:"]

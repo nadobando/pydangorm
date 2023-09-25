@@ -77,8 +77,8 @@ repos:
         args:
           - --show-traceback
         additional_dependencies:
-          - pydantic==1.10.10
           - mypy-extensions
+          - pydantic==1.10.12
           - pytest~=7.3.1
           - httpx~=0.18.2
           - pydiction~=0.1.0
