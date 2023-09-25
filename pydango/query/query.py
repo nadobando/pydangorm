@@ -1,47 +1,24 @@
 import json
 import logging
 import sys
-from typing import Any, Dict, List, Optional, Union, overload
-
-if sys.version_info >= (3, 10):
-    from typing import Self, TypeAlias
-else:
-    from typing_extensions import Self, TypeAlias
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, overload
 
 from aioarango.database import Database
 
 from pydango.orm.encoders import jsonable_encoder
-
-# if TYPE_CHECKING:
 from pydango.query.expressions import (
-    BindableExpression,
-    CollectionExpression,
-    ConditionExpression,
-    Expression,
-    FieldExpression,
     In,
-    IterableExpression,
-    IteratorExpression,
-    LiteralExpression,
-    ObjectExpression,
     QueryExpression,
-    ReturnableMixin,
     SubQueryExpression,
-    VariableExpression,
     VectorSubQueryExpression,
 )
 from pydango.query.operations import (
-    AssignmentParam,
-    AssignmentParams,
     CollectOperation,
     FilterOperation,
     ForOperation,
-    ForParams,
     InsertOperation,
     LetOperation,
     LimitOperation,
-    Operation,
-    RangeExpression,
     RemoveOperation,
     ReplaceOperation,
     ReturnOperation,
@@ -52,17 +29,51 @@ from pydango.query.operations import (
     UpdateOperation,
     UpsertOperation,
 )
-from pydango.query.options import (
-    CollectOptions,
-    RemoveOptions,
-    ReplaceOptions,
-    UpdateOptions,
-    UpsertOptions,
-)
+
+if TYPE_CHECKING:
+    from pydango.query.expressions import (
+        BindableExpression,
+        CollectionExpression,
+        ConditionExpression,
+        Expression,
+        FieldExpression,
+        IterableExpression,
+        IteratorExpression,
+        LiteralExpression,
+        ObjectExpression,
+        RangeExpression,
+        ReturnableMixin,
+        VariableExpression,
+    )
+    from pydango.query.operations import (
+        AssignmentParam,
+        AssignmentParams,
+        ForParams,
+        Operation,
+    )
+    from pydango.query.options import (
+        CollectOptions,
+        RemoveOptions,
+        ReplaceOptions,
+        UpdateOptions,
+        UpsertOptions,
+    )
+
+if sys.version_info >= (3, 11):
+    from typing import Self, TypeAlias
+else:
+    from typing_extensions import Self, TypeAlias
 
 logger = logging.getLogger(__name__)
 
 JsonType: TypeAlias = Union[None, int, str, bool, List["JsonType"], Dict[str, "JsonType"]]
+
+TraverseIterators: TypeAlias = Union[
+    "IteratorExpression",
+    tuple["IteratorExpression"],
+    tuple["IteratorExpression", "IteratorExpression"],
+    tuple["IteratorExpression", "IteratorExpression", "IteratorExpression"],
+]
 
 
 class AQLQuery(QueryExpression):
@@ -78,7 +89,7 @@ class AQLQuery(QueryExpression):
         self._var_counter = 0
         self._param_counter = 0
         self.parent: Optional[AQLQuery] = parent
-        self._ops: list[Operation] = []
+        self._ops: list["Operation"] = []
         self._compiled = ""
         self.__is_modification_query__ = False
 
@@ -110,8 +121,10 @@ class AQLQuery(QueryExpression):
 
     def for_(
         self,
-        collection_or_variable: ForParams,
-        in_: Optional[Union[IterableExpression, list, VariableExpression, list[VariableExpression], "AQLQuery"]] = None,
+        collection_or_variable: "ForParams",
+        in_: Optional[
+            Union["IterableExpression", list, "VariableExpression", list["VariableExpression"], "AQLQuery"]
+        ] = None,
     ) -> Self:
         if self == in_:
             raise ValueError("is not possible to loop over the same query")
@@ -125,21 +138,16 @@ class AQLQuery(QueryExpression):
 
     def traverse(
         self,
-        iterators: Union[
-            IteratorExpression,
-            tuple[IteratorExpression],
-            tuple[IteratorExpression, IteratorExpression],
-            tuple[IteratorExpression, IteratorExpression, IteratorExpression],
-        ],
-        edge: Union[str, CollectionExpression],
-        start: Union["LiteralExpression", VariableExpression, FieldExpression, str],
-        depth: Union[RangeExpression, range, tuple[int, int]],
+        iterators: TraverseIterators,
+        edges: Union[str, "CollectionExpression", Sequence[Union[str, "CollectionExpression"]]],
+        start: Union["LiteralExpression", "VariableExpression", "FieldExpression", str],
+        depth: Union["RangeExpression", range, tuple[int, int]],
         direction: TraversalDirection,
-    ):
+    ) -> Self:
         self._ops.append(
             TraversalOperation(
                 iterators=iterators,
-                edge=edge,
+                edges=edges,
                 start=start,
                 depth=depth,
                 direction=direction,
@@ -148,7 +156,7 @@ class AQLQuery(QueryExpression):
         )
         return self
 
-    def filter(self, condition: ConditionExpression) -> "AQLQuery":
+    def filter(self, condition: "ConditionExpression") -> "AQLQuery":
         if isinstance(condition, In) and isinstance(condition.right, AQLQuery):
             condition.right.parent = self
             condition.right = VectorSubQueryExpression(condition.right)
@@ -161,23 +169,21 @@ class AQLQuery(QueryExpression):
         return self
 
     @overload
-    def let(self, variable: VariableExpression, expression: Expression) -> "AQLQuery":
-        ...
+    def let(self, variable: "VariableExpression", expression: "Expression") -> "AQLQuery": ...
 
     @overload
-    def let(self, variable: str, expression: Expression) -> "VariableExpression":
-        ...
+    def let(self, variable: str, expression: "Expression") -> "VariableExpression": ...
 
     def let(
-        self, variable: Union[VariableExpression, str], expression: Expression
-    ) -> Union["AQLQuery", VariableExpression]:
+        self, variable: Union["VariableExpression", str], expression: "Expression"
+    ) -> Union["AQLQuery", "VariableExpression"]:
         let_operation = LetOperation(variable, expression, query_ref=self)  # type: ignore[arg-type]
         self._ops.append(let_operation)
         if isinstance(variable, str):
             return let_operation.expression.variable
         return self
 
-    def return_(self, return_expr: Union[ReturnableMixin, dict]) -> Self:
+    def return_(self, return_expr: Union["ReturnableMixin", dict]) -> Self:
         if isinstance(return_expr, AQLQuery):
             return_expr.parent = self
             return_expr = SubQueryExpression(return_expr)
@@ -198,7 +204,7 @@ class AQLQuery(QueryExpression):
     def bind_variable(self) -> str:
         return self._get_var_name()
 
-    def bind_parameter(self, parameter: BindableExpression) -> str:
+    def bind_parameter(self, parameter: "BindableExpression", override_var_name: Optional[str] = None) -> str:
         if self.parent:
             return self.parent.bind_parameter(parameter)
         is_hashable = False
@@ -211,7 +217,7 @@ class AQLQuery(QueryExpression):
             if str(parameter.value) in self._parameters:
                 return self._parameters[str(parameter.value)]
 
-        var = self._get_param_var()
+        var = override_var_name or self._get_param_var()
 
         self.bind_vars[var[1:]] = parameter.value
 
@@ -227,7 +233,7 @@ class AQLQuery(QueryExpression):
         return self
 
     def insert(
-        self, doc: Union[dict, ObjectExpression, VariableExpression], collection: Union[str, CollectionExpression]
+        self, doc: Union[dict, "ObjectExpression", "VariableExpression"], collection: Union[str, "CollectionExpression"]
     ) -> Self:
         self.__is_modification_query__ = True
         self._ops.append(InsertOperation(doc, collection, self))  # type: ignore[arg-type]
@@ -235,10 +241,10 @@ class AQLQuery(QueryExpression):
 
     def remove(
         self,
-        expression: Union[dict, LiteralExpression, FieldExpression, VariableExpression, ObjectExpression, str],
-        collection: Union[str, CollectionExpression],
+        expression: Union[dict, "LiteralExpression", "FieldExpression", "VariableExpression", "ObjectExpression", str],
+        collection: Union[str, "CollectionExpression"],
         *,
-        options: Optional[RemoveOptions] = None,
+        options: Optional["RemoveOptions"] = None,
     ) -> Self:
         self.__is_modification_query__ = True
         self._ops.append(
@@ -246,7 +252,7 @@ class AQLQuery(QueryExpression):
         )  # type: ignore[arg-type]
         return self
 
-    def update(self, key, doc, coll, *, options: Optional[UpdateOptions] = None) -> Self:
+    def update(self, key, doc, coll, *, options: Optional["UpdateOptions"] = None) -> Self:
         self.__is_modification_query__ = True
         self._ops.append(
             UpdateOperation(key, doc, coll, query_ref=self, options=options),
@@ -255,11 +261,11 @@ class AQLQuery(QueryExpression):
 
     def replace(
         self,
-        key: Union[str, dict, ObjectExpression],
-        doc: Union[ObjectExpression, dict],
-        collection: Union[CollectionExpression, str],
+        key: Union[str, dict, "ObjectExpression"],
+        doc: Union["ObjectExpression", dict],
+        collection: Union["CollectionExpression", str],
         *,
-        options: Optional[ReplaceOptions] = None,
+        options: Optional["ReplaceOptions"] = None,
     ) -> Self:
         self.__is_modification_query__ = True
         self._ops.append(
@@ -270,36 +276,34 @@ class AQLQuery(QueryExpression):
     @overload
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression],
-        insert: Union[dict, ObjectExpression],
-        collection: Union[str, CollectionExpression],
+        filter_: Union[dict, "ObjectExpression", "VariableExpression"],
+        insert: Union[dict, "ObjectExpression", "VariableExpression"],
+        collection: Union[str, "CollectionExpression"],
         *,
-        replace: Union[dict, ObjectExpression],
-        options: Optional[UpsertOptions] = None,
-    ) -> Self:
-        ...
+        replace: Union[dict, "ObjectExpression", "VariableExpression"],
+        options: Optional["UpsertOptions"] = None,
+    ) -> Self: ...
 
     @overload
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression],
-        insert: Union[dict, ObjectExpression],
-        collection: Union[str, CollectionExpression],
+        filter_: Union[dict, "ObjectExpression", "VariableExpression"],
+        insert: Union[dict, "ObjectExpression", "VariableExpression"],
+        collection: Union[str, "CollectionExpression"],
         *,
-        update: Union[dict, ObjectExpression],
-        options: Optional[UpsertOptions] = None,
-    ) -> Self:
-        ...
+        update: Union[dict, "ObjectExpression", "VariableExpression"],
+        options: Optional["UpsertOptions"] = None,
+    ) -> Self: ...
 
     def upsert(
         self,
-        filter_: Union[dict, ObjectExpression],
-        insert: Union[dict, ObjectExpression],
-        collection: Union[str, CollectionExpression],
+        filter_: Union[dict, "ObjectExpression", "VariableExpression"],
+        insert: Union[dict, "ObjectExpression", "VariableExpression"],
+        collection: Union[str, "CollectionExpression"],
         *,
-        update: Union[dict, ObjectExpression, None] = None,
-        replace: Union[dict, ObjectExpression, None] = None,
-        options: Optional[UpsertOptions] = None,
+        update: Union[dict, "ObjectExpression", "VariableExpression", None] = None,
+        replace: Union[dict, "ObjectExpression", "VariableExpression", None] = None,
+        options: Optional["UpsertOptions"] = None,
     ) -> Self:
         self.__is_modification_query__ = True
 
@@ -321,62 +325,57 @@ class AQLQuery(QueryExpression):
     def collect(
         self,
         *,
-        collect: Optional[AssignmentParams] = None,
-        into: Optional[Union[VariableExpression, AssignmentParam]] = None,
-        keep: Optional[VariableExpression] = None,
-        options: Optional[CollectOptions] = None,
-    ):
-        ...
+        collect: Optional["AssignmentParams"] = None,
+        into: Optional[Union["VariableExpression", "AssignmentParam"]] = None,
+        keep: Optional["VariableExpression"] = None,
+        options: Optional["CollectOptions"] = None,
+    ): ...
 
     @overload
     def collect(
         self,
         *,
-        with_count_into: Optional[VariableExpression] = None,
-        options: Optional[CollectOptions] = None,
-    ):
-        ...
+        with_count_into: Optional["VariableExpression"] = None,
+        options: Optional["CollectOptions"] = None,
+    ): ...
 
     @overload
     def collect(
         self,
         *,
-        collect: Optional[AssignmentParams] = None,
-        with_count_into: Optional[VariableExpression] = None,
-        options: Optional[CollectOptions] = None,
-    ):
-        ...
+        collect: Optional["AssignmentParams"] = None,
+        with_count_into: Optional["VariableExpression"] = None,
+        options: Optional["CollectOptions"] = None,
+    ): ...
 
     @overload
     def collect(
         self,
         *,
-        aggregate: Optional[AssignmentParams] = None,
-        into: Optional[Union[VariableExpression, AssignmentParam]] = None,
-        options: Optional[CollectOptions] = None,
-    ):
-        ...
+        aggregate: Optional["AssignmentParams"] = None,
+        into: Optional[Union["VariableExpression", "AssignmentParam"]] = None,
+        options: Optional["CollectOptions"] = None,
+    ): ...
 
     @overload
     def collect(
         self,
         *,
-        collect: Optional[AssignmentParams] = None,
-        aggregate: Optional[AssignmentParams] = None,
-        into: Optional[Union[VariableExpression, AssignmentParam]] = None,
-        options: Optional[CollectOptions] = None,
-    ):
-        ...
+        collect: Optional["AssignmentParams"] = None,
+        aggregate: Optional["AssignmentParams"] = None,
+        into: Optional[Union["VariableExpression", "AssignmentParam"]] = None,
+        options: Optional["CollectOptions"] = None,
+    ): ...
 
     def collect(
         self,
         *,
-        collect: Optional[AssignmentParams] = None,
-        aggregate: Optional[AssignmentParams] = None,
-        into: Optional[Union[VariableExpression, AssignmentParam]] = None,
-        keep: Optional[VariableExpression] = None,
-        with_count_into: Optional[VariableExpression] = None,
-        options: Optional[CollectOptions] = None,
+        collect: Optional["AssignmentParams"] = None,
+        aggregate: Optional["AssignmentParams"] = None,
+        into: Optional[Union["VariableExpression", "AssignmentParam"]] = None,
+        keep: Optional["VariableExpression"] = None,
+        with_count_into: Optional["VariableExpression"] = None,
+        options: Optional["CollectOptions"] = None,
     ) -> Self:
         self._ops.append(
             CollectOperation(
@@ -391,8 +390,11 @@ class AQLQuery(QueryExpression):
         )
         return self
 
+    def _serialize_vars(self):
+        return jsonable_encoder(self.bind_vars, by_alias=True)
+
     async def execute(self, db: Database, **options):
         compiled = self.compile()
-        self.compiled_vars = jsonable_encoder(self.bind_vars)
+        self.compiled_vars = self._serialize_vars()
         logger.debug("executing query", extra={"query": compiled, "bind_vars": json.dumps(self.compiled_vars)})
         return await db.aql.execute(compiled, bind_vars=self.compiled_vars, **options)

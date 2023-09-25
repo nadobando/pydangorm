@@ -10,16 +10,14 @@ from pydango.query.expressions import (
     ObjectExpression,
     QueryExpression,
     ReturnableMixin,
-    VariableExpression,
 )
 
 if TYPE_CHECKING:
     from pydango.query import AQLQuery
+    from pydango.query.expressions import VariableExpression
 
 
 class BaseFunctionExpression(Expression):
-    returns = None
-
     def __init__(self, name, *arguments):
         self.name = name
         arguments = list(arguments)
@@ -63,6 +61,13 @@ class FunctionExpression(BaseFunctionExpression, ReturnableMixin):
 
 
 # document
+class Document(FunctionExpression):
+    name = "DOCUMENT"
+
+    def __init__(self, _id: str):
+        super().__init__(_id)
+
+
 class Unset(FunctionExpression):
     name = "UNSET"
 
@@ -268,7 +273,12 @@ class Shift(FunctionExpression):
         super().__init__(array)
 
 
-class Slice(FunctionExpression, IterableExpression):
+class ArrayFunctionMixin:
+    def __getitem__(self, item):
+        return self.arguments[item]
+
+
+class Slice(FunctionExpression, IterableExpression, ArrayFunctionMixin):
     name = "SLICE"
 
     def __init__(self, array, start, count=None):
@@ -278,10 +288,10 @@ class Slice(FunctionExpression, IterableExpression):
             super().__init__(array, start, count)
 
 
-class UnionArrays(FunctionExpression, IterableExpression):
+class UnionArrays(FunctionExpression, IterableExpression, ArrayFunctionMixin):
     name = "UNION"
 
-    def __init__(self, *arrays: Union[ListExpression, VariableExpression]):
+    def __init__(self, *arrays: Union[ListExpression, "VariableExpression"]):
         super().__init__(*arrays)
 
 

@@ -1,18 +1,26 @@
+import sys
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Callable, Optional, Sequence, Type, Union
 
-import aioarango.database
-from aioarango.typings import Fields
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
+
+from aioarango.collection import Collection
+
+if TYPE_CHECKING:
+    from aioarango.result import Result
+    from aioarango.typings import Fields, Json
 
 
 @dataclass()
-class Index:
-    ...
+class Index: ...
 
 
 @dataclass()
 class GeoIndex(Index):
-    fields: Fields
+    fields: "Fields"
     ordered: Optional[bool] = None
     name: Optional[str] = None
     in_background: Optional[bool] = None
@@ -63,11 +71,13 @@ class TTLIndex(Index):
     in_background: Optional[bool] = None
 
 
-mapping = {
-    GeoIndex: aioarango.database.StandardCollection.add_geo_index,
-    PersistentIndex: aioarango.database.StandardCollection.add_persistent_index,
-    FullTextIndex: aioarango.database.StandardCollection.add_fulltext_index,
-    SkipListIndex: aioarango.database.StandardCollection.add_skiplist_index,
-    TTLIndex: aioarango.database.StandardCollection.add_ttl_index,
-    HashIndex: aioarango.database.StandardCollection.add_hash_index,
+Indexes: TypeAlias = Union[GeoIndex, HashIndex, SkipListIndex, FullTextIndex, PersistentIndex, TTLIndex]
+
+mapping: dict[Type[Indexes], Callable[..., Awaitable["Result[Json]"]]] = {
+    GeoIndex: Collection.add_geo_index,
+    HashIndex: Collection.add_hash_index,
+    SkipListIndex: Collection.add_skiplist_index,
+    FullTextIndex: Collection.add_fulltext_index,
+    PersistentIndex: Collection.add_persistent_index,
+    TTLIndex: Collection.add_ttl_index,
 }

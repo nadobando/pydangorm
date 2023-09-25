@@ -1,8 +1,9 @@
 import datetime
 
-from pydango.orm.models import VertexCollectionConfig, VertexModel
+from pydango.orm.models import VertexModel
+from pydango.orm.models.base import Aliased
+from pydango.orm.models.vertex import VertexCollectionConfig
 from pydango.orm.query import ORMQuery
-from pydango.orm.utils import Aliased
 from pydango.query.expressions import (
     NEW,
     OLD,
@@ -161,7 +162,7 @@ def test_sub_query():
 
 
 def test_insert():
-    aql = ORMQuery().insert(User(name="nadir", age=35)).return_(NEW())
+    aql = ORMQuery().insert(User(name="john", age=35)).return_(NEW())
     expected_repr = "INSERT {name: ?, age: ?} INTO <CollectionExpression: users> RETURN NEW"
     expected_compiled = "INSERT {name: @param1, age: @param2} INTO `users` RETURN NEW"
     assert repr(aql) == expected_repr
@@ -169,7 +170,7 @@ def test_insert():
 
 
 def test_remove():
-    aql = ORMQuery().remove(User(key="user/123", name="nadir", age=35)).return_(OLD())
+    aql = ORMQuery().remove(User(key="user/123", name="john", age=35)).return_(OLD())
     expected_repr = "REMOVE {_key: ?} IN <CollectionExpression: users> RETURN OLD"
     expected_compiled = "REMOVE {_key: @param1} IN `users` RETURN OLD"
     assert repr(aql) == expected_repr
@@ -177,7 +178,7 @@ def test_remove():
 
 
 def test_replace():
-    aql = ORMQuery().replace(User(name="nadir", age=35), User(name="nadir", age=36)).return_(NEW())
+    aql = ORMQuery().replace(User(name="john", age=35), User(name="john", age=36)).return_(NEW())
     expected_repr = "REPLACE {name: ?, age: ?} IN <CollectionExpression: users> RETURN NEW"
     expected_compiled = "REPLACE {name: @param1, age: @param2} IN `users` RETURN NEW"
     assert repr(aql) == expected_repr
@@ -185,7 +186,7 @@ def test_replace():
 
 
 def test_update():
-    aql = ORMQuery().update(User(name="nadir", age=35), User(name="nadir", age=36)).return_(NEW())
+    aql = ORMQuery().update(User(name="john", age=35), User(name="john", age=36)).return_(NEW())
     expected_repr = "UPDATE {name: ?, age: ?} IN <CollectionExpression: users> RETURN NEW"
     expected_compiled = "UPDATE {name: @param1, age: @param2} IN `users` RETURN NEW"
     assert repr(aql) == expected_repr
@@ -193,8 +194,8 @@ def test_update():
 
 
 def test_upsert():
-    user = User(name="nadir", age=36)
-    aql = ORMQuery().upsert(User(name="nadir", age=35), insert=user, update=user).return_(NEW())
+    user = User(name="john", age=36)
+    aql = ORMQuery().upsert(User(name="john", age=35), insert=user, update=user).return_(NEW())
     expected_repr = (
         "UPSERT {name: ?, age: ?} INSERT {name: ?, age: ?} UPDATE {name: ?, age: ?} IN <CollectionExpression: users>"
         " RETURN NEW"

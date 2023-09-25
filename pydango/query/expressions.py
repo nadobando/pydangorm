@@ -2,6 +2,7 @@ import datetime
 import sys
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from enum import Enum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Type, Union, cast
 
@@ -11,10 +12,14 @@ if sys.version_info >= (3, 10):
     from typing import TypeAlias
 else:
     from typing_extensions import TypeAlias
-from pydango.query.utils import SortDirection
 
 if TYPE_CHECKING:
     from pydango.query.query import AQLQuery
+
+
+class SortDirection(str, Enum):
+    ASC = "ASC"
+    DESC = "DESC"
 
 
 class ReturnableMixin(ABC):
@@ -98,13 +103,14 @@ class OLD(ModificationVariable):
     _keyword = "OLD"
 
 
-# noinspection PyTypeChecker
 class FieldExpression(Expression, ReturnableMixin):
     """
     Expression class for field access of objects and documents
     """
 
-    def __init__(self, field: Union[str, Expression], parent: Optional[VariableExpression] = None):
+    def __init__(
+        self, field: Union[str, Expression], parent: Union[VariableExpression, "FieldExpression", None] = None
+    ):
         self.parent = parent
         self.field = field
 
@@ -210,6 +216,7 @@ class IterableExpression(Expression, ReturnableMixin, ABC):
     Base class for iterable expressions
     """
 
+    # todo: move this to a more relevant place
     def __init__(self, iterator: Optional[Union[IteratorExpression, str]] = None):
         if iterator is None:
             self.iterator = IteratorExpression()
@@ -222,6 +229,28 @@ class IterableExpression(Expression, ReturnableMixin, ABC):
 class QueryExpression(Expression, ABC):
     parent: Optional["QueryExpression"] = None
     sep = " "
+
+
+class RangeExpression(IterableExpression):
+    def __init__(self, start, end):
+        super().__init__()
+        self.end = end
+        self.start = start
+
+    def compile(self, query_ref: "AQLQuery"):
+        if isinstance(self.start, Expression):
+            start = self.start.compile(query_ref)
+        else:
+            start = self.start
+        if isinstance(self.end, Expression):
+            end = self.end.compile(query_ref)
+        else:
+            end = self.end
+
+        return f"{start}..{end}"
+
+    def __repr__(self):
+        return f"{self.start}..{self.end}"
 
 
 class AssignmentExpression(Expression):
@@ -343,8 +372,7 @@ class BaseArithmeticExpression(Expression, ReturnableMixin, ABC):
     """
 
 
-class UnaryArithmeticExpression(UnaryExpression, BaseArithmeticExpression):
-    ...
+class UnaryArithmeticExpression(UnaryExpression, BaseArithmeticExpression): ...
 
 
 class ArithmeticExpression(BinaryExpression, BaseArithmeticExpression):
@@ -375,6 +403,7 @@ class ReturnableIterableExpression(IterableExpression, ReturnableMixin, ABC):
 class SubQueryExpression(Expression, ReturnableMixin):
     def __init__(self, query: QueryExpression):
         self.query = query
+        self.query.sep = " "
 
     def __repr__(self):
         if self.query.sep == "\n":
@@ -382,13 +411,13 @@ class SubQueryExpression(Expression, ReturnableMixin):
         return f"({repr(self.query)})"
 
     def compile(self, query_ref) -> str:
+        # self.query.sep = "\n"
         if self.query.sep == "\n":
-            return f"(\t{self.query.compile(query_ref)})"
+            return f"({self.query.compile(query_ref)})"
         return f"({self.query.compile(query_ref)})"
 
 
-class ScalarSubQuery(SubQueryExpression):
-    ...
+class ScalarSubQuery(SubQueryExpression): ...
 
 
 class VectorSubQueryExpression(SubQueryExpression, IterableExpression):
@@ -422,7 +451,9 @@ class FigurativeExpression(BindableExpression, ReturnableMixin, ABC):
     pass
 
 
-ListItems = Union[QueryExpression, LiteralExpression, FigurativeExpression, Mapping, Sequence, int, float, str, bool]
+ListItems: TypeAlias = Union[
+    QueryExpression, LiteralExpression, FigurativeExpression, Mapping, Sequence, int, float, str, bool
+]
 ListValues: TypeAlias = Union[
     tuple[
         ListItems,
@@ -436,7 +467,7 @@ class ListExpression(
     BindableExpression,
     IterableExpression,
 ):
-    def __init__(self, value: ListValues, iterator: Optional[Union[IteratorExpression, str]] = None):
+    def __init__(self, value: ListValues, iterator: Optional[Union[IteratorExpression, str]] = None, brackets=True):
         if isinstance(value, list):
             value = tuple(value)
 
@@ -444,11 +475,12 @@ class ListExpression(
         super(BindableExpression, self).__init__(iterator)
         self._copy: list[Expression] = []
         self._need_compile = False
+        self._brackets = brackets
         for i in self.value:
             if isinstance(i, QueryExpression):
                 self._copy.append(SubQueryExpression(i))
                 self._need_compile = True
-            elif isinstance(i, VariableExpression):
+            elif isinstance(i, (VariableExpression, FieldExpression)):
                 self._copy.append(i)
                 self._need_compile = True
             elif isinstance(i, Expression):
@@ -470,7 +502,10 @@ class ListExpression(
                 if isinstance(i, SubQueryExpression):
                     i.query.parent = cast(QueryExpression, query_ref)
                 result.append(i.compile(query_ref))
-            return f'[{", ".join(result)}]'
+            if self._brackets:
+                return f'[{", ".join(result)}]'
+            else:
+                return ", ".join(result)
 
         return super().compile(query_ref)
 
@@ -507,11 +542,10 @@ class ObjectExpression(BindableExpression, ReturnableMixin):
             for field, mapped_field in self.value.items():
                 if isinstance(mapped_field, list):
                     self.value[field] = ListExpression(mapped_field)
-                    self.__all_literals__ = False
+                    self.__all_literals__ = self.__all_literals__ or not self.value[field]._need_compile
                 elif isinstance(mapped_field, dict):
                     self.value[field] = ObjectExpression(mapped_field, self.parent)
-                    self.__all_literals__ = False
-
+                    self.__all_literals__ = self.__all_literals__ or self.value[field].__all_literals__
                 elif isinstance(mapped_field, QueryExpression):
                     subquery = SubQueryExpression(mapped_field)
                     self.value[field] = subquery
@@ -533,6 +567,8 @@ class ObjectExpression(BindableExpression, ReturnableMixin):
 
         if isinstance(self.value, dict):
             for field, mapped_field in self.value.items():
+                if isinstance(field, Expression):
+                    field = field.compile(query_ref)
                 pairs.append(f"{field}: {mapped_field.compile(query_ref)}")
 
         return f"{{{', '.join(pairs)}}}"
@@ -548,8 +584,9 @@ class ObjectExpression(BindableExpression, ReturnableMixin):
         return f"{{{', '.join(pairs)}}}"
 
 
-# class BaseAQLVariableExpressionMixin:
-#     ...
+class BaseAQLVariableExpressionMixin(Expression):
+    def __init__(self, value: str):
+        self.value = value
 
 
 # class AQLVariableExpression(BaseAQLVariableExpressionMixin):
@@ -560,9 +597,12 @@ class ObjectExpression(BindableExpression, ReturnableMixin):
 #         return f"@{super().compile(*args, **kwargs)}"
 
 
-# class AQLCollectionVariableExpression(BaseAQLVariableExpressionMixin):
-#     def compile(self, *args, **kwargs) -> str:
-#         return f"@@{super().compile(*args, **kwargs)}"
+class AQLCollectionVariableExpression(VariableExpression):
+    def __init__(self, value: str):
+        super().__init__(value)
+
+    def compile(self, *args, **kwargs) -> str:
+        return f"@@{super().compile(*args, **kwargs)}"
 
 
 def _set_operator(self, operator, other, cls: Type[BinaryExpression]) -> BinaryExpression:
@@ -592,3 +632,15 @@ class SortExpression(Expression):
             self.direction = SortDirection.DESC
         else:
             self.direction = SortDirection.ASC
+
+
+class DynamicFieldExpression(FieldExpression):
+    def compile(self, query_ref: "AQLQuery") -> str:
+        return f"[{super().compile(query_ref)}]"
+
+    def __hash__(self):
+        field = ""
+        if self.parent:
+            field += f"{self.parent}."
+        field += f"{self.field}"
+        return hash(field)

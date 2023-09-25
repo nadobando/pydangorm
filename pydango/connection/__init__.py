@@ -1,1 +1,1 @@
-DALI_SESSION_KW = "__dali__session__"
+DALI_SESSION_KW = "__session__"

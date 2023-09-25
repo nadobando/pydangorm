@@ -1,17 +1,25 @@
+import asyncio
 import datetime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Iterable, Type
 
 import pytest
+from _pytest.fixtures import FixtureRequest
+from pydantic import Field
+from pydiction import ANY_NOT_NONE, Matcher
 
 from pydango.connection.session import PydangoSession
 from pydango.index import PersistentIndex
-from pydango.orm.models import (
-    EdgeCollectionConfig,
-    EdgeModel,
-    Relation,
-    VertexCollectionConfig,
-    VertexModel,
-)
+from pydango.orm.models import EdgeModel, VertexModel
+from pydango.orm.models.base import BaseArangoModel, Relation
+from pydango.orm.models.edge import EdgeCollectionConfig
+from pydango.orm.models.vertex import VertexCollectionConfig
+from pydango.query.consts import ID
+
+# from tests.utils import find_dict_diffs, ANY_NOT_NONE
+# from tests.utils2 import Matcher
+
+if TYPE_CHECKING:
+    pass
 
 
 class Visited(EdgeModel):
@@ -61,18 +69,87 @@ Person.update_forward_refs()
 
 # LivesIn.update_forward_refs()
 # Person.update_forward_refs()
+def expected_person(person: Person):
+    expected = {
+        "_id": ANY_NOT_NONE,
+        "_key": ANY_NOT_NONE,
+        "_rev": ANY_NOT_NONE,
+        "name": person.name,
+        "age": person.age,
+        "lives_in": {
+            "_id": ANY_NOT_NONE,
+            "_key": ANY_NOT_NONE,
+            "_rev": ANY_NOT_NONE,
+            "name": "tlv",
+            "population": person.lives_in.population,
+        },
+        "visited": [
+            {
+                "_id": ANY_NOT_NONE,
+                "_key": ANY_NOT_NONE,
+                "_rev": ANY_NOT_NONE,
+                "name": person.visited[0].name,
+                "population": person.visited[0].population,
+            },
+            {
+                "_id": ANY_NOT_NONE,
+                "_key": ANY_NOT_NONE,
+                "_rev": ANY_NOT_NONE,
+                "name": person.visited[1].name,
+                "population": person.visited[1].population,
+            },
+        ],
+        "edges": {
+            "lives_in": {
+                "_id": ANY_NOT_NONE,
+                "_key": ANY_NOT_NONE,
+                "_rev": ANY_NOT_NONE,
+                "_from": ANY_NOT_NONE,
+                "_to": ANY_NOT_NONE,
+                "since": person.edges.lives_in.since,
+            },
+            "visited": [
+                {
+                    "_id": ANY_NOT_NONE,
+                    "_key": ANY_NOT_NONE,
+                    "_rev": ANY_NOT_NONE,
+                    "_from": ANY_NOT_NONE,
+                    "_to": ANY_NOT_NONE,
+                    "on_date": person.edges.visited[0].on_date,
+                    "rating": person.edges.visited[0].rating,
+                },
+                {
+                    "_id": ANY_NOT_NONE,
+                    "_key": ANY_NOT_NONE,
+                    "_rev": ANY_NOT_NONE,
+                    "_from": ANY_NOT_NONE,
+                    "_to": ANY_NOT_NONE,
+                    "on_date": person.edges.visited[1].on_date,
+                    "rating": person.edges.visited[1].rating,
+                },
+            ],
+        },
+    }
+    return expected
 
 
+@pytest.fixture(scope="module", autouse=True)
+async def init_collections(session: PydangoSession):
+    models: Iterable[Type[BaseArangoModel]] = (Person, City, LivesIn, Visited)
+    await asyncio.gather(*[session.init(coll) for coll in models])
+
+
+@pytest.mark.run(order=1)
 @pytest.mark.asyncio
-async def test_save(database):
-    # await get_or_create_db(client, "pydango")
-    # db = await client.db("pydango")
+async def test_save(matcher: Matcher, session: PydangoSession, request: FixtureRequest, person):
+    p = await session.save(person)
+    print(p)
+    request.config.cache.set("person_key", p.key)  # type: ignore[union-attr]
+    matcher.assert_declarative_object(p.dict(by_alias=True, include_edges=True), expected_person(p))
 
-    session = PydangoSession(database)
-    await session.init(Person)
-    await session.init(City)
-    await session.init(LivesIn)
-    await session.init(Visited)
+
+@pytest.fixture
+def person():
     p = Person(
         name="John",
         age=35,
@@ -89,29 +166,16 @@ async def test_save(database):
             ],
         },
     )
-
-    p = await session.save(p)
-
-    print(p)
-    # city = City(name="BsAs", population=33)
-    # await session.save(city)
-    # p = await session.get(Person, "356900")
-    # await session.save()
-
-    # new_q = NEW()
-    # city_q = ORMQuery().insert(city).return_(new_q._id)
-    # new_p = NEW()
-    # person_q = ORMQuery().insert(p).return_(new_p)
-    # lives_in_q = ORMQuery().insert(LivesIn(from_=new_p._id, to=new_q._id))
-
-    # await p.lives_in
-
-    # print(type(p.lives_in))
-    # print(id(p.lives_in.name))
-    # print(p.lives_in.fetch())
-
-    # print(p.dict(exclude={"id"}))
+    return p
 
 
-# if __name__ == "__main__":
-#     asyncio.run(run())
+class IdProjection(VertexModel):
+    id: str = Field(alias=ID)
+
+
+@pytest.mark.run(order=2)
+async def test_get(matcher: Matcher, session: PydangoSession, request: FixtureRequest):
+    _id = request.config.cache.get("person_key", None)  # type: ignore[union-attr]
+    result = await session.get(Person, _id, fetch_edges=True)
+    assert result is not None
+    matcher.assert_declarative_object(result.dict(by_alias=True, include_edges=True), expected_person(result))

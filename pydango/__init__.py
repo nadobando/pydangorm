@@ -1,6 +1,1 @@
-class NotAnObject:
-    def __repr__(self):
-        return "NAO"
-
-
-NAO = NotAnObject()
+__version__ = "0.0.0"
