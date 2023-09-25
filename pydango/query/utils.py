@@ -5,8 +5,7 @@ from pydango.query.expressions import NEW
 
 
 class Compilable(Protocol):
-    def compile(self, *args, **kwargs) -> Union[str, None]:
-        ...
+    def compile(self, *args, **kwargs) -> Union[str, None]: ...
 
 
 T = TypeVar("T")

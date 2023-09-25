@@ -17,9 +17,9 @@ from typing import (
     get_origin,
 )
 
-from aioarango import AQLQueryExecuteError
 from aioarango.collection import StandardCollection
 from aioarango.database import StandardDatabase
+from aioarango.exceptions import AQLQueryExecuteError
 from indexed import IndexedOrderedDict  # type: ignore[attr-defined]
 from pydantic import BaseModel
 

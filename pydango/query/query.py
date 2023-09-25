@@ -169,12 +169,10 @@ class AQLQuery(QueryExpression):
         return self
 
     @overload
-    def let(self, variable: "VariableExpression", expression: "Expression") -> "AQLQuery":
-        ...
+    def let(self, variable: "VariableExpression", expression: "Expression") -> "AQLQuery": ...
 
     @overload
-    def let(self, variable: str, expression: "Expression") -> "VariableExpression":
-        ...
+    def let(self, variable: str, expression: "Expression") -> "VariableExpression": ...
 
     def let(
         self, variable: Union["VariableExpression", str], expression: "Expression"
@@ -284,8 +282,7 @@ class AQLQuery(QueryExpression):
         *,
         replace: Union[dict, "ObjectExpression", "VariableExpression"],
         options: Optional["UpsertOptions"] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     @overload
     def upsert(
@@ -296,8 +293,7 @@ class AQLQuery(QueryExpression):
         *,
         update: Union[dict, "ObjectExpression", "VariableExpression"],
         options: Optional["UpsertOptions"] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     def upsert(
         self,
@@ -333,8 +329,7 @@ class AQLQuery(QueryExpression):
         into: Optional[Union["VariableExpression", "AssignmentParam"]] = None,
         keep: Optional["VariableExpression"] = None,
         options: Optional["CollectOptions"] = None,
-    ):
-        ...
+    ): ...
 
     @overload
     def collect(
@@ -342,8 +337,7 @@ class AQLQuery(QueryExpression):
         *,
         with_count_into: Optional["VariableExpression"] = None,
         options: Optional["CollectOptions"] = None,
-    ):
-        ...
+    ): ...
 
     @overload
     def collect(
@@ -352,8 +346,7 @@ class AQLQuery(QueryExpression):
         collect: Optional["AssignmentParams"] = None,
         with_count_into: Optional["VariableExpression"] = None,
         options: Optional["CollectOptions"] = None,
-    ):
-        ...
+    ): ...
 
     @overload
     def collect(
@@ -362,8 +355,7 @@ class AQLQuery(QueryExpression):
         aggregate: Optional["AssignmentParams"] = None,
         into: Optional[Union["VariableExpression", "AssignmentParam"]] = None,
         options: Optional["CollectOptions"] = None,
-    ):
-        ...
+    ): ...
 
     @overload
     def collect(
@@ -373,8 +365,7 @@ class AQLQuery(QueryExpression):
         aggregate: Optional["AssignmentParams"] = None,
         into: Optional[Union["VariableExpression", "AssignmentParam"]] = None,
         options: Optional["CollectOptions"] = None,
-    ):
-        ...
+    ): ...
 
     def collect(
         self,

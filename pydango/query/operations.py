@@ -498,8 +498,7 @@ class UpsertOperation(Operation):
         *,
         update: Union[dict, ObjectExpression, VariableExpression],
         options: Optional["UpsertOptions"] = None,
-    ):
-        ...
+    ): ...
 
     @overload
     def __init__(
@@ -511,8 +510,7 @@ class UpsertOperation(Operation):
         *,
         replace: Union[dict, ObjectExpression, VariableExpression],
         options: Optional["UpsertOptions"] = None,
-    ):
-        ...
+    ): ...
 
     def __init__(
         self,

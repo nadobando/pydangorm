@@ -344,8 +344,7 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
         # getter_dict = dict
         allow_population_by_field_name = True
 
-    class Collection(CollectionConfig):
-        ...
+    class Collection(CollectionConfig): ...
 
     def __init__(__pydantic_self__, **data: Any):
         super().__init__(**data)
@@ -439,8 +438,7 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
         #             cls.__edge_to_field_mapping__[new_k.Collection.name] = funcs
 
     @abstractmethod
-    def save_dict(self) -> "DictStrAny":
-        ...
+    def save_dict(self) -> "DictStrAny": ...
 
 
 class Aliased(Generic[ArangoModel]):

@@ -153,14 +153,12 @@ class ORMQuery(AQLQuery):
 
     # noinspection PyMethodOverriding
     @overload
-    def insert(self, doc: "ArangoModel") -> Self:
-        ...
+    def insert(self, doc: "ArangoModel") -> Self: ...
 
     @overload
     def insert(
         self, doc: Union[dict, "ObjectExpression", "VariableExpression"], collection: Union[str, CollectionExpression]
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     def insert(
         self,
@@ -177,8 +175,7 @@ class ORMQuery(AQLQuery):
     @overload
     def remove(  # noqa: PyMethodOverriding
         self, expression: BaseArangoModel, *, options: Optional[RemoveOptions] = None
-    ):
-        ...
+    ): ...
 
     @overload
     def remove(
@@ -187,8 +184,7 @@ class ORMQuery(AQLQuery):
         collection: Union[str, CollectionExpression],
         *,
         options: Optional[RemoveOptions] = None,
-    ):
-        ...
+    ): ...
 
     def remove(
         self,
@@ -215,8 +211,7 @@ class ORMQuery(AQLQuery):
         ...
 
     @overload
-    def update(self, key, doc, coll, *, options: Optional[UpdateOptions] = None) -> Self:
-        ...
+    def update(self, key, doc, coll, *, options: Optional[UpdateOptions] = None) -> Self: ...
 
     def update(self, key, doc, coll=None, *, options: Optional[UpdateOptions] = None) -> Self:
         if isinstance(key, BaseArangoModel):
@@ -234,8 +229,7 @@ class ORMQuery(AQLQuery):
         doc: BaseArangoModel,
         *,
         options: Optional[ReplaceOptions] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     @overload
     def replace(  # noqa: PyMethodOverriding
@@ -244,8 +238,7 @@ class ORMQuery(AQLQuery):
         doc: Union[dict, BaseArangoModel],
         *,
         options: Optional[ReplaceOptions] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     @overload
     def replace(
@@ -255,8 +248,7 @@ class ORMQuery(AQLQuery):
         collection: Union[str, CollectionExpression],
         *,
         options: Optional[ReplaceOptions] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     def replace(
         self,
@@ -288,8 +280,7 @@ class ORMQuery(AQLQuery):
         *,
         replace: Union[dict, BaseModel, "ObjectExpression", BaseArangoModel, "VariableExpression"],
         options: Optional[UpsertOptions] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     @overload
     def upsert(  # noqa: PyMethodOverriding
@@ -299,8 +290,7 @@ class ORMQuery(AQLQuery):
         *,
         update: Union[dict, BaseModel, "ObjectExpression", BaseArangoModel, "VariableExpression"],
         options: Optional[UpsertOptions] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     @overload
     def upsert(  # noqa: PyMethodOverriding
@@ -311,8 +301,7 @@ class ORMQuery(AQLQuery):
         *,
         replace: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
         options: Optional[UpsertOptions] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     @overload
     def upsert(  # noqa: PyMethodOverriding
@@ -323,8 +312,7 @@ class ORMQuery(AQLQuery):
         *,
         update: Union[dict, BaseModel, "ObjectExpression", "VariableExpression"],
         options: Optional[UpsertOptions] = None,
-    ) -> Self:
-        ...
+    ) -> Self: ...
 
     def upsert(
         self,

@@ -13,13 +13,11 @@ if TYPE_CHECKING:
 @overload
 async def get_or_create_collection(
     db: "StandardDatabase", model: Type["ArangoModel"], *, edge=None
-) -> "StandardCollection":
-    ...
+) -> "StandardCollection": ...
 
 
 @overload
-async def get_or_create_collection(db: "StandardDatabase", model: str, *, edge=None) -> "StandardCollection":
-    ...
+async def get_or_create_collection(db: "StandardDatabase", model: str, *, edge=None) -> "StandardCollection": ...
 
 
 async def get_or_create_collection(
