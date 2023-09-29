@@ -17,7 +17,8 @@ async def populate(database: Database):
     for coll in DATA:
         for i, row in enumerate(DATA[coll]):
             aql, _, __ = insert_return_new_query(coll, row, NEW())
-            response = await aql.execute(database)
+
+            response = await database.aql.execute(aql.compile(), bind_vars=aql.bind_vars)
             next_ = await response.next()
             DATA[coll][i] = next_
             responses[coll].append(next_)

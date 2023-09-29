@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import logging
 import sys
 from collections import OrderedDict, defaultdict, namedtuple
@@ -558,7 +559,7 @@ class PydangoSession:
             query = _make_upsert_query(filter_, document, document, ORMQuery(), strategy, options)
 
         try:
-            cursor = await query.execute(self.database)
+            cursor = await self.execute(query)
         except AQLQueryExecuteError as e:
             logger.exception(query)
             raise e
@@ -620,11 +621,9 @@ class PydangoSession:
 
         main_query.return_(return_)
 
-        cursor = await main_query.execute(self.database)
+        cursor = await self.execute(main_query)
         result = await cursor.next()
-        if not result:
-            raise DocumentNotFoundError(_id)
-        if fetch_edges and not result.get("doc"):
+        if not result or (fetch_edges and not result.get("doc")):
             raise DocumentNotFoundError(_id)
 
         if issubclass(model, VertexModel):
@@ -644,12 +643,16 @@ class PydangoSession:
 
         return document
 
-    # except DocumentNotFoundError:
-    #     return None
-
     async def find(self, model: Type[BaseArangoModel], filters=None, skip=None, limit=None):
         collection = _collection_from_model(self.database, model)
         return await collection.find(filters, skip, limit)
+
+    async def execute(self, query: "AQLQuery", **options):
+        prepared_query = query.prepare()
+        logger.debug(
+            "executing query", extra={"query": prepared_query.query, "bind_vars": json.dumps(prepared_query.bind_vars)}
+        )
+        return await self.database.aql.execute(prepared_query.query, bind_vars=prepared_query.bind_vars, **options)
 
 
 def traverse_model_and_map(pydantic_model: Type[BaseModel], variable: VariableExpression):
