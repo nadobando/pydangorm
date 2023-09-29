@@ -113,7 +113,9 @@ jobs:
       - test
     runs-on: ubuntu-latest
     concurrency: release
-
+    permissions:
+      id-token: write
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:

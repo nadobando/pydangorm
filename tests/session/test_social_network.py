@@ -254,7 +254,6 @@ def expected_user_depth2(user: VertexModel):
 @pytest.mark.asyncio
 async def test_save(matcher: Matcher, session: PydangoSession, request: FixtureRequest, user: User):
     await session.save(user)
-    print(user.id)
     request.config.cache.set("user_key", user.key)  # type: ignore[union-attr]
     matcher.assert_declarative_object(user.dict(by_alias=True, include_edges=True), expected_user_depth2(user))
 
