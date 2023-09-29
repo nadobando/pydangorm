@@ -139,15 +139,6 @@ async def init_collections(session: PydangoSession):
     await asyncio.gather(*[session.init(coll) for coll in models])
 
 
-@pytest.mark.run(order=1)
-@pytest.mark.asyncio
-async def test_save(matcher: Matcher, session: PydangoSession, request: FixtureRequest, person):
-    p = await session.save(person)
-    print(p)
-    request.config.cache.set("person_key", p.key)  # type: ignore[union-attr]
-    matcher.assert_declarative_object(p.dict(by_alias=True, include_edges=True), expected_person(p))
-
-
 @pytest.fixture
 def person():
     p = Person(
@@ -167,6 +158,14 @@ def person():
         },
     )
     return p
+
+
+@pytest.mark.run(order=1)
+@pytest.mark.asyncio
+async def test_save(matcher: Matcher, session: PydangoSession, request: FixtureRequest, person):
+    p = await session.save(person)
+    request.config.cache.set("person_key", p.key)  # type: ignore[union-attr]
+    matcher.assert_declarative_object(p.dict(by_alias=True, include_edges=True), expected_person(p))
 
 
 class IdProjection(VertexModel):
