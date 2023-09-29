@@ -7,13 +7,14 @@ from aioarango.database import Database
 from pydango.connection.utils import deplete_cursor, iterate_cursor
 from tests.queries import multiple_filters_query, projection_complex_query, simple_query
 from tests.test_queries.data import DATA
+from tests.test_queries.utils import execute_query
 
 
 @pytest.mark.asyncio
 async def test_simple_query(database: Database):
     query, _ = simple_query(29)
 
-    results = await deplete_cursor(await query.execute(database))
+    results = await deplete_cursor(await execute_query(query, database))
     expected = get_at(DATA["users"], 2, 6, 4, 3)
 
     assert results == expected
@@ -26,7 +27,7 @@ def get_at(lst: Sequence, *indexes: int):
 @pytest.mark.asyncio
 async def test_multiple_filters_query(database: Database):
     query, _ = multiple_filters_query(25, "Female")
-    results = await deplete_cursor(await query.execute(database))
+    results = await deplete_cursor(await execute_query(query, database))
     expected = get_at(DATA["users"], 1, 4, 6)
     assert expected == results
 
@@ -34,7 +35,7 @@ async def test_multiple_filters_query(database: Database):
 @pytest.mark.asyncio
 async def test_projection_complex_query(database: Database):
     query, _, _ = projection_complex_query("Jane Smith", 25)
-    results = await iterate_cursor(await query.execute(database))
+    results = await iterate_cursor(await execute_query(query, database))
     expected_results = [
         {"a": "Jane Smith"},
     ]

@@ -10,12 +10,13 @@ from tests.test_queries.ecommerce_queries import (
     get_user_orders_query,
     get_user_reviews_query,
 )
+from tests.test_queries.utils import execute_query
 
 
 @pytest.mark.asyncio
 async def test_get_user_orders_query(database: Database):
     query, orders_coll = get_user_orders_query("1")
-    results = await deplete_cursor(await query.execute(database))
+    results = await deplete_cursor(await execute_query(query, database))
     expected = [
         DATA["orders"][0],
         DATA["orders"][1],
@@ -26,7 +27,7 @@ async def test_get_user_orders_query(database: Database):
 @pytest.mark.asyncio
 async def test_get_product_reviews_query(database: Database):
     query = get_product_reviews_query("1")
-    results = await deplete_cursor(await query.execute(database))
+    results = await deplete_cursor(await execute_query(query, database))
     expected = [
         DATA["reviews"][1],
         DATA["reviews"][0],
@@ -37,7 +38,7 @@ async def test_get_product_reviews_query(database: Database):
 @pytest.mark.asyncio
 async def test_get_user_reviews_query(database: Database):
     query, reviews_coll = get_user_reviews_query("2")
-    results = await deplete_cursor(await query.execute(database))
+    results = await deplete_cursor(await execute_query(query, database))
     expected = [
         DATA["reviews"][1],
     ]
@@ -47,8 +48,7 @@ async def test_get_user_reviews_query(database: Database):
 @pytest.mark.asyncio
 async def test_get_product_orders_reviews_query(database: Database):
     query = get_product_orders_reviews_query("1")
-    query.compile()
-    results = await deplete_cursor(await query.execute(database))
+    results = await deplete_cursor(await execute_query(query, database))
     expected = [
         {"product": DATA["products"][0], "orders": DATA["orders"][0], "reviews": DATA["reviews"][1]},
         {"product": DATA["products"][0], "orders": DATA["orders"][0], "reviews": DATA["reviews"][0]},
@@ -59,9 +59,7 @@ async def test_get_product_orders_reviews_query(database: Database):
 @pytest.mark.asyncio
 async def test_get_ordered_products_with_reviews_query(database: Database):
     query = get_ordered_products_with_reviews_query()
-    query.compile()
-
-    results = await deplete_cursor(await query.execute(database))
+    results = await deplete_cursor(await execute_query(query, database))
     expected = [
         {"product": DATA["products"][0], "orders": DATA["orders"][0], "reviews": DATA["reviews"][0]},
         {"product": DATA["products"][0], "orders": DATA["orders"][0], "reviews": DATA["reviews"][1]},
