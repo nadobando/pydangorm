@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from pydantic.fields import LocStr, ModelOrDc, ValidateReturn
 
     from pydango.orm.models.vertex import TVertexModel
-    from pydango.query import AQLQuery
+    from pydango.query.expressions import QueryExpression
 
 
 class ModelFieldExpression(FieldExpression):
@@ -22,7 +22,7 @@ class ModelFieldExpression(FieldExpression):
         super().__init__(field, cast(VariableExpression, parent))
         self.parent = parent  # type: ignore[assignment]
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         if isinstance(self.field, Expression):
             return super().compile(query_ref)
         else:

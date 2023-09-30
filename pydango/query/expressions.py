@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Type, Union, cast
+from typing import Any, Mapping, Optional, Sequence, Type, Union, cast
 
 from pydango.query.consts import DYNAMIC_ALIAS
 
@@ -12,9 +12,6 @@ if sys.version_info >= (3, 10):
     from typing import TypeAlias
 else:
     from typing_extensions import TypeAlias
-
-if TYPE_CHECKING:
-    from pydango.query.query import AQLQuery
 
 
 class SortDirection(str, Enum):
@@ -30,7 +27,7 @@ class ReturnableMixin(ABC):
 
 class Expression(ABC):
     @abstractmethod
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         raise NotImplementedError
 
     def __deepcopy__(self, memodict=None):
@@ -41,7 +38,7 @@ class BindableExpression(Expression):
     def __init__(self, value: Any) -> None:
         self.value = value
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         # Mypy: Argument 1 to "bind_parameter" of "AQLQuery"
         # has incompatible type "expressions.LiteralExpression";
         # expected "Union[pydango.query.expressions.LiteralExpression, FigurativeExpression]"  [arg-type]
@@ -57,7 +54,7 @@ class VariableExpression(Expression, ReturnableMixin):
     def __init__(self, var_name: Optional[str] = None):
         self.var_name = var_name
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         if self.var_name is None:
             self.var_name = query_ref.bind_variable()
 
@@ -79,7 +76,7 @@ class VariableExpression(Expression, ReturnableMixin):
 class ModificationVariable(VariableExpression, ABC):
     _keyword: str
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         if not query_ref.__is_modification_query__:
             raise AssertionError(f"no modification operation defined to use {self._keyword} keyword")
 
@@ -114,7 +111,7 @@ class FieldExpression(Expression, ReturnableMixin):
         self.parent = parent
         self.field = field
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         if self.parent is None:
             raise ValueError("field parent must be populated")
         if isinstance(self.field, Expression):
@@ -229,6 +226,14 @@ class IterableExpression(Expression, ReturnableMixin, ABC):
 class QueryExpression(Expression, ABC):
     parent: Optional["QueryExpression"] = None
     sep = " "
+    __used_vars__: set[str]
+    __is_modification_query__: bool
+
+    @abstractmethod
+    def bind_variable(self) -> str: ...
+
+    @abstractmethod
+    def bind_parameter(self, parameter: "BindableExpression", override_var_name: Optional[str] = None) -> str: ...
 
 
 class RangeExpression(IterableExpression):
@@ -237,7 +242,7 @@ class RangeExpression(IterableExpression):
         self.end = end
         self.start = start
 
-    def compile(self, query_ref: "AQLQuery"):
+    def compile(self, query_ref: "QueryExpression"):
         if isinstance(self.start, Expression):
             start = self.start.compile(query_ref)
         else:
@@ -258,7 +263,7 @@ class AssignmentExpression(Expression):
         self.variable = variable
         self.expression = expression
 
-    def compile(self, query_ref: "AQLQuery"):
+    def compile(self, query_ref: "QueryExpression"):
         expression_compile = self.expression.compile(query_ref)
         if isinstance(self.expression, QueryExpression):
             self.expression.parent = query_ref
@@ -281,7 +286,7 @@ class UnaryExpression(Expression, ReturnableMixin):
         self.operand = operand
         self.operator = operator
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         return f"{self.operator}({self.operand.compile(query_ref)})"
 
 
@@ -296,7 +301,7 @@ class BinaryExpression(Expression, ReturnableMixin):
         self.right = right
 
     @lru_cache(maxsize=1)
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         left_compile = self.left.compile(query_ref)
         right_compile = self.right.compile(query_ref)
         return f"{left_compile} {self.op} {right_compile}"
@@ -337,7 +342,7 @@ class BinaryLogicalExpression(ConditionExpression):
     """
 
     @lru_cache(maxsize=1)
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         return f"({self.left.compile(query_ref)} {self.op} {self.right.compile(query_ref)})"
 
 
@@ -495,12 +500,12 @@ class ListExpression(
             else:
                 self._copy.append(LiteralExpression(i))
 
-    def compile(self, query_ref: "AQLQuery", **kwargs) -> str:
+    def compile(self, query_ref: "QueryExpression", **kwargs) -> str:
         if self._need_compile:
             result = []
             for i in self._copy:
                 if isinstance(i, SubQueryExpression):
-                    i.query.parent = cast(QueryExpression, query_ref)
+                    i.query.parent = query_ref
                 result.append(i.compile(query_ref))
             if self._brackets:
                 return f'[{", ".join(result)}]'
@@ -559,9 +564,9 @@ class ObjectExpression(BindableExpression, ReturnableMixin):
                 ):
                     self.value[field] = LiteralExpression(mapped_field)
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         for bind in self._bind.values():
-            bind.query.parent = cast(QueryExpression, query_ref)
+            bind.query.parent = query_ref
 
         pairs = []
 
@@ -616,7 +621,7 @@ class SortExpression(Expression):
         self.field = field
         self.direction = direction
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         compiled = f"{self.field.compile(query_ref)}"
         if self.direction:
             compiled += f" {self.direction.value}"
@@ -635,7 +640,7 @@ class SortExpression(Expression):
 
 
 class DynamicFieldExpression(FieldExpression):
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         return f"[{super().compile(query_ref)}]"
 
     def __hash__(self):

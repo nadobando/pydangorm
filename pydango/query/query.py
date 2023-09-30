@@ -3,6 +3,7 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, overload
 
+from pydango.orm.encoders import jsonable_encoder
 from pydango.query.expressions import (
     In,
     QueryExpression,
@@ -393,14 +394,8 @@ class AQLQuery(QueryExpression):
         )
         return self
 
-    # def _serialize_vars(self):
-    #     return jsonable_encoder(self.bind_vars, by_alias=True)
-    #
-    # async def execute(self, db: Database, **options):
-    #     compiled = self.compile()
-    #     self.compiled_vars = self._serialize_vars()
-    #     # logger.debug("executing query", extra={"query": compiled, "bind_vars": json.dumps(self.compiled_vars)})
-    #     return await db.aql.execute(compiled, bind_vars=self.compiled_vars, **options)
+    def _serialize_vars(self):
+        return jsonable_encoder(self.bind_vars, by_alias=True)
 
     def prepare(self) -> PreparedQuery:
         return PreparedQuery(self.compile(), self._serialize_vars())

@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 
 class Operation(Compilable):
-    def __init__(self, query_ref: "AQLQuery"):
+    def __init__(self, query_ref: "QueryExpression"):
         self.query_ref = query_ref
 
     def compile(self, *args, **kwargs):
@@ -73,7 +73,7 @@ class ForOperation(Operation):
         collection_or_variable: ForParams,
         in_: Optional[Union[list, IterableExpression]] = None,
         *,
-        query_ref: "AQLQuery",
+        query_ref: "QueryExpression",
         options: Optional["LoopOptions"] = None,
     ):
         super().__init__(query_ref)

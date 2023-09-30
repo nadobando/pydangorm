@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from pydango.orm.models.base import ArangoModel
     from pydango.query.expressions import (
         BinaryLogicalExpression,
-        BindableExpression,
         ConditionExpression,
         Expression,
         IterableExpression,
@@ -202,9 +201,6 @@ class ORMQuery(AQLQuery):
             raise ValueError(IMPLICIT_COLLECTION_ERROR)
 
         return super().remove(expression, collection, options=options)
-
-    def bind_parameter(self, parameter: "BindableExpression", override_var_name: Optional[str] = None) -> str:
-        return super().bind_parameter(parameter)
 
     @overload
     def update(self, key, doc, *, options: Optional[UpdateOptions] = None) -> Self:  # noqa: PyMethodOverriding

@@ -6,7 +6,7 @@ from _pytest.fixtures import FixtureRequest
 from pydiction import ANY_NOT_NONE, Contains, Matcher
 
 from pydango.connection.session import PydangoSession
-from pydango.index import PersistentIndex
+from pydango.indexes import PersistentIndex
 from pydango.orm.models import BaseArangoModel, EdgeModel, VertexModel
 from pydango.orm.models.base import Relation
 from pydango.orm.models.edge import EdgeCollectionConfig
