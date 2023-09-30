@@ -13,7 +13,6 @@ from pydango.query.expressions import (
 )
 
 if TYPE_CHECKING:
-    from pydango.query import AQLQuery
     from pydango.query.expressions import VariableExpression
 
 
@@ -30,7 +29,7 @@ class BaseFunctionExpression(Expression):
 
         self.arguments = arguments
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         arguments = []
         for arg in self.arguments:
             if isinstance(arg, QueryExpression):
@@ -122,7 +121,7 @@ class Length(FunctionExpression):
         self.further = f" + {other}"
         return self
 
-    def compile(self, query_ref: "AQLQuery") -> str:
+    def compile(self, query_ref: "QueryExpression") -> str:
         return super().compile(query_ref) + self.further
 
 

@@ -19,7 +19,7 @@ async def populate(database: Database):
             aql, _, __ = insert_return_new_query(coll, row, NEW())
 
             response = await database.aql.execute(aql.compile(), bind_vars=aql.bind_vars)
-            next_ = await response.next()
+            next_ = await response.next()  # type: ignore[union-attr]
             DATA[coll][i] = next_
             responses[coll].append(next_)
     yield

@@ -20,11 +20,11 @@ from typing import (
 
 from pydantic import BaseConfig, ConfigError, Field
 from pydantic.fields import SHAPE_SINGLETON, ModelField, PrivateAttr, Undefined
-from pydantic.main import BaseModel, ModelMetaclass, object_setattr
+from pydantic.main import BaseModel, ModelMetaclass
 from pydantic.typing import resolve_annotations
 
-from pydango.connection import DALI_SESSION_KW
-from pydango.index import Indexes
+from pydango.connection.consts import PYDANGO_SESSION_KEY
+from pydango.indexes import Indexes
 from pydango.orm.consts import EDGES
 from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.models.fields import (
@@ -226,7 +226,7 @@ class DocFieldDescriptor(Generic[FieldType]):
                 return self._proxy
 
             if self.relation:
-                session = getattr(instance, DALI_SESSION_KW, None)
+                session = getattr(instance, PYDANGO_SESSION_KEY, None)
                 self._proxy = LazyProxy(field_value, self.relation, instance, session)
                 return self._proxy  # type: ignore[valid-type]
         if not instance:
@@ -346,13 +346,9 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
 
     class Collection(CollectionConfig): ...
 
-    def __init__(__pydantic_self__, **data: Any):
+    def __init__(self, **data: Any):
         super().__init__(**data)
-        object_setattr(__pydantic_self__, "__session__", data.get(DALI_SESSION_KW))
-
-    # @property
-    # def session(self):
-    #     return self._session
+        object.__setattr__(self, PYDANGO_SESSION_KEY, data.get(PYDANGO_SESSION_KEY))
 
     @classmethod
     def _decompose_class(cls: Type["Model"], obj: Any) -> Union["GetterDict", dict]:  # type: ignore[override]
@@ -382,15 +378,15 @@ class BaseArangoModel(BaseModel, metaclass=ArangoModelMeta):
 
     @classmethod
     def from_orm(cls: Type[ArangoModel], obj: Any, *, session=None) -> ArangoModel:
-        obj[DALI_SESSION_KW] = session
+        obj[PYDANGO_SESSION_KEY] = session
         for field_name, field in cls.__relationships_fields__.items():
             exists_in_orm = field_name in obj and obj.get(field_name, None)
             if exists_in_orm:
                 if isinstance(exists_in_orm, list):
                     for i, v in enumerate(exists_in_orm):
-                        exists_in_orm[i][DALI_SESSION_KW] = session
+                        exists_in_orm[i][PYDANGO_SESSION_KEY] = session
                 else:
-                    exists_in_orm[DALI_SESSION_KW] = session
+                    exists_in_orm[PYDANGO_SESSION_KEY] = session
 
                 obj[field_name] = exists_in_orm
 

@@ -1,17 +1,15 @@
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Awaitable, Callable, Optional, Sequence, Type, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 else:
     from typing_extensions import TypeAlias
 
-from aioarango.collection import Collection
 
 if TYPE_CHECKING:
-    from aioarango.result import Result
-    from aioarango.typings import Fields, Json
+    from aioarango.typings import Fields
 
 
 @dataclass()
@@ -72,12 +70,3 @@ class TTLIndex(Index):
 
 
 Indexes: TypeAlias = Union[GeoIndex, HashIndex, SkipListIndex, FullTextIndex, PersistentIndex, TTLIndex]
-
-mapping: dict[Type[Indexes], Callable[..., Awaitable["Result[Json]"]]] = {
-    GeoIndex: Collection.add_geo_index,
-    HashIndex: Collection.add_hash_index,
-    SkipListIndex: Collection.add_skiplist_index,
-    FullTextIndex: Collection.add_fulltext_index,
-    PersistentIndex: Collection.add_persistent_index,
-    TTLIndex: Collection.add_ttl_index,
-}
