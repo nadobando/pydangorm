@@ -17,7 +17,9 @@
 
 - **Asynchronous Support**: Perform asynchronous database operations for optimized I/O-bound tasks.
 
-### [Full Documentation](https://nadobando.github.io/pydangorm)
+______________________________________________________________________
+
+## [Full Documentation](https://nadobando.github.io/pydangorm)
 
 ## Installation
 
@@ -42,7 +44,7 @@ from pydango import (
     VertexCollectionConfig,
     Relation,
 )
-from pydango.index import PersistentIndex
+from pydango.indexes import PersistentIndex
 
 
 class Visited(EdgeModel):
@@ -95,10 +97,11 @@ Construct and execute queries in a Pythonic manner:
 
 ```python
 from aioarango import ArangoClient
-from models import Person, City, Visited, LivesIn
+from app.models import Person, City, Visited, LivesIn
 
-from pydango import PydangoSession, ORMQuery
-from pydango.connection.utils import get_or_create_db
+from pydango import PydangoSession
+from pydango.orm import for_
+from pydango.connection.utils import get_or_create_db, deplete_cursor
 
 person = Person(
     name="John",
@@ -120,38 +123,24 @@ person = Person(
 
 async def main():
     db = await get_or_create_db(ArangoClient(), "app")
-    session = PydangoSession(db)
+    session = PydangoSession(database=db)
     # Retrieving users older than 10 years
     await session.save(person)
     assert person.id.startswith("people/")
 
-    db_person = await session.get(Person, person.key, include_edges=True, depth=(1, 1))
+    db_person = await session.get(Person, person.key, fetch_edges=True, depth=(1, 1))
     assert db_person == person
 
-    query = (
-        ORMQuery()
-        .for_(Person)
-        .filter(Person.age > 10)
-        .sort(-Person.age)
-        .return_(Person)
-    )
-    query_result = await query.execute(session)
-    db.find(Person).filter(Person.age > 10).all()
-    users = Person.query().filter(User.age > 10).all()
-
-    # Fetching related data with edges
-    visits = Visited.query().filter(Visited.rating > 4.0).join(User).all()
+    query = for_(Person).filter(Person.age > 10).sort(-Person.age).return_(Person)
+    query_result = await session.execute(query)
+    result = await deplete_cursor(query_result)
 ```
 
 More detailed examples and scenarios can be found in the `tests` directory, which showcases modeling and querying for different use-cases like cities, families, and e-commerce operations.
 
 ## Detailed Documentation
 
-For a comprehensive understanding of `pydangorm`'s capabilities, refer to the documentation:
-
-- **[Query Package Documentation](./docs/query)**: Dive deep into query construction, operations, and functionalities.
-- **[ORM Package Documentation](./docs/orm)**: Understand model definitions, relationships, and ORM-specific operations.
-- **[Connection Package Documentation](./docs/connection)**: Explore session management, database connections, and related utilities.
+For detailed documentation, please refer to the [documentation](https://nadobando.github.io/pydangorm).
 
 ## Contributing
 
@@ -159,4 +148,4 @@ Contributions to `pydangorm` are welcome! Please refer to the `CONTRIBUTING.md` 
 
 ## License
 
-`pydangorm` is licensed under \[specific license name\]. See the `LICENSE` file for details.
+`pydangorm` is licensed under [MIT](./LICENSE). See the `LICENSE` file for details.

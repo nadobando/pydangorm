@@ -22,6 +22,7 @@ With `pydangorm`, you can easily define vertex and edge models:
 ```python
 from typing import Annotated
 import datetime
+from pydango.indexes import PersistentIndex
 
 from pydango import (
     VertexModel,
@@ -38,6 +39,9 @@ class Visited(EdgeModel):
 
     class Collection(EdgeCollectionConfig):
         name = "visited"
+        indexes = [
+            PersistentIndex(fields=["rating"]),
+        ]
 
 
 class LivesIn(EdgeModel):
@@ -53,6 +57,7 @@ class City(VertexModel):
 
     class Collection(VertexCollectionConfig):
         name = "cities"
+        indexes = [PersistentIndex(fields=["name"])]
 
 
 class Person(VertexModel):
@@ -63,6 +68,10 @@ class Person(VertexModel):
 
     class Collection(VertexCollectionConfig):
         name = "people"
+        indexes = [
+            PersistentIndex(fields=["name"]),
+            PersistentIndex(fields=["age"]),
+        ]
 ```
 
 ## **CRUD Operations**

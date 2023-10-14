@@ -88,7 +88,8 @@ classifiers = [
   "Framework :: Pydantic :: 1"
 ]
 description = "pydantic based ArangoDB ODM"
-homepage = "https://nadobando.github.io/pydangorm"
+documentation = "https://nadobando.github.io/pydangorm"
+homepage = "https://github.com/nadobando/pydangorm"
 license = "MIT"
 name = "pydangorm"
 packages = [{include = "pydango"}]

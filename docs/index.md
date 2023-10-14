@@ -54,11 +54,13 @@ multi-model NoSQL database.
 
 ______________________________________________________________________
 
-### **Contributions**
+## **Contributions**
 
 We're actively looking for contributors to help improve `pydangorm` and expand its capabilities.
 
 Whether you're a seasoned
-developer or just starting out, your contributions are valuable to us. If you have ideas for new features,
+developer or just starting out, your contributions are valuable to us.
+
+If you have ideas for new features,
 optimizations, or simply want to fix a bug, please check our contribution guidelines or reach out. Together, we can make
-pydangorm the best ArangoDB ORM for Python!
+`pydangorm` the best ArangoDB ORM for Python!
