@@ -19,7 +19,7 @@ class SortDirection(str, Enum):
     DESC = "DESC"
 
 
-class ReturnableMixin(ABC):
+class ReturnableExpression(ABC):
     """
     Base class for returnable expressions
     """
@@ -50,7 +50,7 @@ class LiteralExpression(BindableExpression):
         return "?"
 
 
-class VariableExpression(Expression, ReturnableMixin):
+class VariableExpression(Expression, ReturnableExpression):
     def __init__(self, var_name: Optional[str] = None):
         self.var_name = var_name
 
@@ -100,7 +100,7 @@ class OLD(ModificationVariable):
     _keyword = "OLD"
 
 
-class FieldExpression(Expression, ReturnableMixin):
+class FieldExpression(Expression, ReturnableExpression):
     """
     Expression class for field access of objects and documents
     """
@@ -208,7 +208,7 @@ class IteratorExpression(VariableExpression):
         return cast(ArithmeticExpression, _set_operator(self, "%", other, ArithmeticExpression))
 
 
-class IterableExpression(Expression, ReturnableMixin, ABC):
+class IterableExpression(Expression, ReturnableExpression, ABC):
     """
     Base class for iterable expressions
     """
@@ -277,7 +277,7 @@ class AssignmentExpression(Expression):
         return f"{repr(self.variable)} = {expression_repr}"
 
 
-class UnaryExpression(Expression, ReturnableMixin):
+class UnaryExpression(Expression, ReturnableExpression):
     """
     Expression class for unary operations
     """
@@ -290,7 +290,7 @@ class UnaryExpression(Expression, ReturnableMixin):
         return f"{self.operator}({self.operand.compile(query_ref)})"
 
 
-class BinaryExpression(Expression, ReturnableMixin):
+class BinaryExpression(Expression, ReturnableExpression):
     """
     Expression class for binary operations
     """
@@ -310,7 +310,7 @@ class BinaryExpression(Expression, ReturnableMixin):
         return f"{self.left} {self.op} {self.right}"
 
 
-class LogicalExpression(Expression, ReturnableMixin, ABC):
+class LogicalExpression(Expression, ReturnableExpression, ABC):
     """
     Base class for logical expressions
     """
@@ -371,7 +371,7 @@ class In(ConditionExpression):
         super().__init__("IN", obj, iterable)
 
 
-class BaseArithmeticExpression(Expression, ReturnableMixin, ABC):
+class BaseArithmeticExpression(Expression, ReturnableExpression, ABC):
     """
     Base class for arithmetic expressions
     """
@@ -400,12 +400,12 @@ class ArithmeticExpression(BinaryExpression, BaseArithmeticExpression):
         return id(self)
 
 
-class ReturnableIterableExpression(IterableExpression, ReturnableMixin, ABC):
+class ReturnableIterableExpression(IterableExpression, ReturnableExpression, ABC):
     def __init__(self, iterator):
         super().__init__(iterator)
 
 
-class SubQueryExpression(Expression, ReturnableMixin):
+class SubQueryExpression(Expression, ReturnableExpression):
     def __init__(self, query: QueryExpression):
         self.query = query
         self.query.sep = " "
@@ -452,7 +452,7 @@ class CollectionExpression(IterableExpression):
         return f"`{self.collection_name}`"
 
 
-class FigurativeExpression(BindableExpression, ReturnableMixin, ABC):
+class FigurativeExpression(BindableExpression, ReturnableExpression, ABC):
     pass
 
 
@@ -536,7 +536,7 @@ ObjectParams: TypeAlias = Mapping[
 ]
 
 
-class ObjectExpression(BindableExpression, ReturnableMixin):
+class ObjectExpression(BindableExpression, ReturnableExpression):
     def __init__(self, value: ObjectParams, parent: Optional[Union[VariableExpression, CollectionExpression]] = None):
         super().__init__(value)
         self.parent = parent

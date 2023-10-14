@@ -36,10 +36,12 @@ repos:
           - --remove-duplicate-keys
           - --remove-unused-variables
 
-#  - repo: https://github.com/pre-commit/mirrors-autopep8
-#    rev: v2.0.4
-#    hooks:
-#      - id: autopep8
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.10.0
+    hooks:
+      - id: pretty-format-toml
+        args: [--autofix]
+        files: toml
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
@@ -98,17 +100,31 @@ repos:
       - id: no-commit-to-branch
         args:
           - --branch
-          - master
+          - main
 
 
-  - repo: https://github.com/python-poetry/poetry
-    rev: 1.4.0
+  - repo: local
     hooks:
-      - id: poetry-check
       - id: poetry-lock
+        name: poetry-install
+        description: run poetry install to install dependencies from the lock file
+        entry: poetry lock
         args:
           - --no-update
-          #      - id: poetry-export
+        language: python
+        pass_filenames: false
+        files: pyproject.toml
+
+      - id: poetry-install
+        name: poetry-install
+        description: run poetry install to install dependencies from the lock file
+        entry: poetry install
+        args:
+          - --no-root
+        language: python
+        pass_filenames: false
+        stages: [post-checkout, post-merge]
+        always_run: true
 
 
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
@@ -122,3 +138,13 @@ repos:
           - '2'
           - --sequence
           - '4'
+
+
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17  # Use the ref you want to point at
+    hooks:
+      - id: mdformat
+      # Optionally add plugins
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-black

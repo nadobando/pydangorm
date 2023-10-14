@@ -1,4 +1,3 @@
-import asyncio
 from typing import Annotated, Iterable, Optional, Type
 
 import pytest
@@ -11,6 +10,7 @@ from pydango.orm.models import BaseArangoModel, EdgeModel, VertexModel
 from pydango.orm.models.base import Relation
 from pydango.orm.models.edge import EdgeCollectionConfig
 from pydango.orm.models.vertex import VertexCollectionConfig
+from pydango.utils import init_models
 
 
 class Person(VertexModel):
@@ -120,7 +120,7 @@ def test_obj():
 @pytest.fixture(scope="module", autouse=True)
 async def init_collections(session: PydangoSession):
     models: Iterable[Type[BaseArangoModel]] = (Person, Sibling)
-    await asyncio.gather(*[session.init(coll) for coll in models])
+    await init_models(session, *models)
 
 
 def expected_person(person: Person):

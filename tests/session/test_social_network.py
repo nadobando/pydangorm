@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 from typing import Annotated, Any, Iterable, List, Optional, Type, Union
 
@@ -11,6 +10,7 @@ from pydango.orm.models import BaseArangoModel, EdgeModel, VertexModel
 from pydango.orm.models.base import Relation
 from pydango.orm.models.edge import EdgeCollectionConfig
 from pydango.orm.models.vertex import VertexCollectionConfig
+from pydango.utils import init_models
 
 
 class Post(VertexModel):
@@ -80,7 +80,7 @@ User.update_forward_refs()
 @pytest.fixture(scope="module", autouse=True)
 async def init_collections(session: PydangoSession):
     models: Iterable[Type[BaseArangoModel]] = (Post, Comment, User, Friendship, Authorship, Commentary, Like)
-    await asyncio.gather(*[session.init(coll) for coll in models])
+    await init_models(session, *models)
 
 
 @pytest.fixture()

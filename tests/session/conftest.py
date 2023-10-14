@@ -8,7 +8,7 @@ from tests.conftest import AsyncFixture
 
 @pytest.fixture(scope="package")
 async def session(database: StandardDatabase) -> AsyncFixture[PydangoSession]:
-    yield PydangoSession(database)
+    yield PydangoSession(database=database)
 
 
 @pytest.fixture(scope="package")

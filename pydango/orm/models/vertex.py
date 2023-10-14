@@ -18,7 +18,7 @@ from pydango.orm.consts import EDGES
 from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.models import BaseArangoModel, CollectionConfig, CollectionType
 from pydango.orm.models.base import LIST_TYPES, ArangoModelMeta, LinkTypes
-from pydango.orm.models.edge import EdgeData
+from pydango.orm.models.edge import EdgeData, EdgeDict
 from pydango.orm.models.types import EdgeFieldMapping, Relationships
 from pydango.orm.models.utils import convert_edge_data_to_valid_kwargs
 from pydango.orm.utils import evaluate_forward_ref, get_globals
@@ -123,7 +123,11 @@ class VertexModel(BaseArangoModel, Generic[TEdges], metaclass=VertexMeta):
     def __init__(self, **data: Any):
         if EDGES in data:
             convert_edge_data_to_valid_kwargs(data[EDGES])
+
         super().__init__(**data)
+
+        if EDGES not in data:  # note: enables dot notation for edges field
+            object.__setattr__(self, EDGES, EdgeDict())
 
     def dict(
         self,
@@ -137,9 +141,8 @@ class VertexModel(BaseArangoModel, Generic[TEdges], metaclass=VertexMeta):
         exclude_none: bool = False,
         include_edges: bool = False,
     ) -> "DictStrAny":
-        d = cast(dict, self.__exclude_fields__)
         if include_edges and self.__exclude_fields__:
-            d.pop("edges")
+            cast(dict, self.__exclude_fields__).pop("edges")
 
         try:
             super__dict = super().dict(
@@ -156,8 +159,15 @@ class VertexModel(BaseArangoModel, Generic[TEdges], metaclass=VertexMeta):
                 "is not possible to call .dict() when using recursive model, instead traverse the graph and collect"
                 " data or exclude recursive fields"
             ) from e
-        if self.__exclude_fields__:
-            d["edges"] = True
+
+        if (
+            self.__exclude_fields__ is None
+            or EDGES not in self.__exclude_fields__
+            and isinstance(self.edges, EdgeDict)
+            and self.edges.__class__ == EdgeDict
+            and not self.edges
+        ):
+            super__dict[EDGES] = None
 
         return super__dict
 

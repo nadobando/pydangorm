@@ -7,6 +7,7 @@ from typing import (
     Any,
     ForwardRef,
     Generic,
+    Literal,
     Mapping,
     Optional,
     Sequence,
@@ -322,8 +323,23 @@ class CollectionType(IntEnum):
 class CollectionConfig:
     name: str
     type: CollectionType
-    wait_for_sync: Optional[bool] = False
-    sync_json_schema: Optional[bool] = True
+    sync: Optional[bool] = False
+    system: Optional[bool] = False
+    key_generator: Literal["traditional", "autoincrement"] = "traditional"
+    user_keys: Optional[bool] = False
+    key_increment: Optional[int]
+    key_offset: Optional[int]
+    shard_fields: Optional[list[str]]
+    shard_count: Optional[int]
+    replication_factor: Optional[int]
+    shard_like: Optional[str]  # enterprise only
+    sync_replication: Optional[bool]
+    enforce_replication_factor: Optional[bool]
+    sharding_strategy: Literal["community-compat", "enterprise-smart-edge-compat", "enterprise-smart-edge"]
+    smart_join_attribute: Optional[str]  # enterprise only
+    write_concern: Optional[int]
+
+    sync_schema: Optional[bool] = False
     indexes: Sequence[Indexes] = []
 
 

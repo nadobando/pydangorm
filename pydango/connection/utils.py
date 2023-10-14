@@ -43,13 +43,15 @@ async def get_or_create_collection(
     return db.collection(collection_name)
 
 
-async def get_or_create_db(client: "ArangoClient", db: str, user: str = "", password: str = "") -> "StandardDatabase":
+async def get_or_create_db(
+    client: "ArangoClient", db: str, user: str = "root", password: str = "", auth_method: str = "basic", **create_params
+) -> "StandardDatabase":
     sys_db = await client.db("_system", username=user, password=password)
 
     if not await sys_db.has_database(db):
-        await sys_db.create_database(db)
+        await sys_db.create_database(db, **create_params)
 
-    return await client.db(db, username=user, password=password)
+    return await client.db(db, username=user, password=password, auth_method=auth_method)
 
 
 async def deplete_cursor(cursor):

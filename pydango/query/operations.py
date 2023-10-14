@@ -36,7 +36,11 @@ else:
     from typing_extensions import TypeAlias
 
 if TYPE_CHECKING:
-    from pydango.query.expressions import Expression, LogicalExpression, ReturnableMixin
+    from pydango.query.expressions import (
+        Expression,
+        LogicalExpression,
+        ReturnableExpression,
+    )
     from pydango.query.options import (
         BaseModificationOptions,
         CollectOptions,
@@ -303,7 +307,7 @@ class SortOperation(Operation):
 
 
 class ReturnOperation(Operation):
-    def __init__(self, return_expr: Union[dict, "ReturnableMixin"], query_ref: "AQLQuery", *, distinct=None):
+    def __init__(self, return_expr: Union[dict, "ReturnableExpression"], query_ref: "AQLQuery", *, distinct=None):
         super().__init__(query_ref=query_ref)
 
         if isinstance(return_expr, CollectionExpression):

@@ -38,3 +38,20 @@ T = TypeVar("T", bound=BaseModel)
 
 class EdgeData(BaseModel, ABC, Generic[T]):
     pass
+
+
+class EdgeDict(dict):
+    def __getattr__(self, item):
+        try:
+            return self[item]
+        except KeyError:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{item}'")
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __delattr__(self, item):
+        try:
+            del self[item]
+        except KeyError:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{item}'")
