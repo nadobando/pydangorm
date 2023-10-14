@@ -75,8 +75,6 @@ module = [
 [tool.poetry]
 authors = ["nadobando <7695172+nadobando@users.noreply.github.com>"]
 classifiers = [
-  "Intended Audience::Developers",
-  "Development Status :: 4 - Beta",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Programming Language :: Python",
