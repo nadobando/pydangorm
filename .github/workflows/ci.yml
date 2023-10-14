@@ -109,8 +109,8 @@ jobs:
     name: Release
     if: github.ref == 'refs/heads/main'
     needs:
-      - test
       - pre-commit
+      - test
     runs-on: ubuntu-latest
     concurrency: release
     permissions:
@@ -156,11 +156,11 @@ jobs:
           path: .cache
           restore-keys: |
             mkdocs-material-
-            
+
       - run: poetry install --no-interaction --only docs
-      
+
       - run: poetry run mkdocs gh-deploy --force
-      
+
       - run: |
           poetry build
 
