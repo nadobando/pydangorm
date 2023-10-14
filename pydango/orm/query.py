@@ -39,10 +39,10 @@ if TYPE_CHECKING:
         Expression,
         IterableExpression,
         ObjectExpression,
-        RangeExpression,
         VariableExpression,
     )
     from pydango.query.operations import ForParams, SortParams, TraversalDirection
+    from pydango.query.types import Range
 
 logger = logging.getLogger(__name__)
 
@@ -372,7 +372,7 @@ class ORMQuery(AQLQuery):
         iterators: TraverseIterators,
         edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
         start: Union["LiteralExpression", "VariableExpression", FieldExpression, str],
-        depth: Union["RangeExpression", range, tuple[int, int]],
+        depth: "Range",
         direction: "TraversalDirection",
     ):
         return super().traverse(iterators, edges, start, depth, direction)
@@ -390,7 +390,7 @@ def traverse(
     iterators: TraverseIterators,
     edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
     start: Union["LiteralExpression", "VariableExpression", FieldExpression, str],
-    depth: Union["RangeExpression", range, tuple[int, int]],
+    depth: "Range",
     direction: "TraversalDirection",
 ):
     return ORMQuery().traverse(iterators, edges, start, depth, direction)

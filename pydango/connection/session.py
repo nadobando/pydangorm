@@ -55,6 +55,7 @@ from pydango.query.query import TraverseIterators
 if TYPE_CHECKING:
     from pydango.orm.models.base import ArangoModel
     from pydango.orm.models.vertex import TVertexModel
+    from pydango.query.types import Range
 
 logger = logging.getLogger(__name__)
 _INDEX_MAPPING: dict[Type[Indexes], Callable[..., Awaitable["Result[Json]"]]] = {
@@ -90,16 +91,18 @@ class PydangoSession:
         auth_method: str = "basic",
     ):
         if isinstance(database, str):
+            if client is None:
+                raise ValueError("client is required when database is a string")
             self._db_name = database
             self.database = None
-        else:
-            self.database = database
-
-        if not isinstance(database, StandardDatabase):
             self.password = password
             self.username = username
             self.client = client
             self.auth_method = auth_method
+        elif isinstance(database, StandardDatabase):
+            self.database = database
+        else:
+            raise ValueError("database should be a string or a StandardDatabase instance")
 
     async def initialize(self):
         if self.database is None:
@@ -166,7 +169,7 @@ class PydangoSession:
         fetch_edges: Union[set[str], bool] = False,
         # fetch_edges_data: Union[set[str], bool] = False,
         fetch_path: bool = False,
-        depth: range = range(1, 1),
+        depth: "Range" = range(1, 1),
         prune: bool = False,
         projection: Optional[Type["ArangoModel"]] = None,
         return_raw: bool = False,
