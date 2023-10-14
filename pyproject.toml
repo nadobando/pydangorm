@@ -95,7 +95,7 @@ name = "pydangorm"
 packages = [{include = "pydango"}]
 readme = "README.md"
 repository = "https://github.com/nadobando/pydangorm"
-version = "0.2.0"
+version = "0.2.1"
 
 [tool.poetry.dependencies]
 aioarango = "^1.0.0"
