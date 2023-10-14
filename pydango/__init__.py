@@ -8,6 +8,7 @@ from .orm import (
     VertexModel,
 )
 from .query import AQLQuery
+from .query.operations import TraversalDirection
 
 __version__ = "0.1.0"
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "ORMQuery",
     "AQLQuery",
     "Relation",
+    "TraversalDirection",
 ]

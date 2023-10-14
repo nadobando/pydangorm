@@ -9,7 +9,7 @@ from pydango.query.expressions import (
     LiteralExpression,
     ObjectExpression,
     QueryExpression,
-    ReturnableMixin,
+    ReturnableExpression,
 )
 
 if TYPE_CHECKING:
@@ -50,7 +50,7 @@ class BaseFunctionExpression(Expression):
         return f"{self.name}({', '.join(arguments)})"
 
 
-class FunctionExpression(BaseFunctionExpression, ReturnableMixin):
+class FunctionExpression(BaseFunctionExpression, ReturnableExpression):
     name: str
 
     def __init__(self, *arguments):

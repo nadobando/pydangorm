@@ -15,7 +15,7 @@ from pydango.query.expressions import (
     FieldExpression,
     IteratorExpression,
     LiteralExpression,
-    ReturnableMixin,
+    ReturnableExpression,
     SortExpression,
 )
 from pydango.query.options import (
@@ -166,7 +166,7 @@ class ORMQuery(AQLQuery):
     ) -> Self:
         if isinstance(doc, (BaseArangoModel, LazyProxy)):
             collection = doc.Collection.name
-            doc = doc.dict(by_alias=True, exclude=doc.__relationships__.keys())
+            doc = doc.save_dict()
         elif collection is None:
             raise ValueError(IMPLICIT_COLLECTION_ERROR)
         return super().insert(doc, collection)
@@ -355,11 +355,11 @@ class ORMQuery(AQLQuery):
         super().upsert(filter_, insert, collection, **kwargs)
         return self
 
-    def return_(self, return_expr: Union[Type[BaseArangoModel], Aliased, "ReturnableMixin", dict]) -> Self:
+    def return_(self, return_expr: Union[Type[BaseArangoModel], Aliased, "ReturnableExpression", dict]) -> Self:
         if isinstance(return_expr, type) and issubclass(return_expr, (BaseArangoModel,)):
             return_expr = self.orm_bound_vars[return_expr]
         elif isinstance(return_expr, Aliased):
-            return_expr = cast("ReturnableMixin", self.orm_bound_vars[return_expr])
+            return_expr = cast("ReturnableExpression", self.orm_bound_vars[return_expr])
 
         super().return_(return_expr)
         return self

@@ -1,56 +1,18 @@
-[tool.poetry]
-name = "pydangorm"
-version = "0.1.0"
-description = "pydantic based ArangoDB ODM"
-authors = ["nadobando <7695172+nadobando@users.noreply.github.com>"]
-readme = "README.md"
-packages = [{ include = "pydango" }]
-
-[tool.poetry.dependencies]
-python = ">=3.9,<4.0"
-aioarango = "^1.0.0"
-pydantic = "==1.10.12"
-urllib3 = "==1.26.15"
-indexed = "^1.3.0"
-
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.3.1"
-black = "^23.3.0"
-pre-commit = "^3.3.1"
-pytest-asyncio = "^0.21.0"
-pytest-cov = "^4.1.0"
-coverage = "^7.2.5"
-isort = "^5.12.0"
-mypy = "^1.5.1"
-freezegun = "^1.2.2"
-pydiction = "^0"
-
-
 [build-system]
-requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-
-[tool.coverage.report]
-exclude_lines = [
-    "if TYPE_CHECKING:",
-    "if __name__ == .__main__.:"
-]
-
+requires = ["poetry-core"]
 
 [tool.autopep8]
-max_line_length = 120
-#ignore = "E501,W6"  # or ["E501", "W6"]
-in-place = true
-recursive = true
 aggressive = 3
+# ignore = "E501,W6"  # or ["E501", "W6"]
+in-place = true
+max_line_length = 120
+recursive = true
+
+[tool.bandit.assert_used]
+skips = ["tests/utils*.py", '**/test_*.py', '**/test_*.py']
 
 [tool.black]
-line-length = 120
-target-version = ['py39']
-include = '\.pyi?$'
-preview = true
 exclude = """
 (
   /(
@@ -69,25 +31,22 @@ exclude = """
   )/
 )
 """
+include = '\.pyi?$'
+line-length = 120
+preview = true
+target-version = ['py39']
+
+[tool.coverage.report]
+exclude_lines = [
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:"
+]
 
 [tool.isort]
 profile = "black"
 
-[tool.pytest.ini_options]
-addopts = "-ra"
-asyncio_mode = "auto"
-
-
-[tool.bandit.assert_used]
-skips = ["tests/utils*.py", '**/test_*.py', '**/test_*.py']
-
-[tool.ruff]
-line-length = 120
-exclude = ["stubs"]
-
 [tool.mypy]
-mypy_path = "./stubs/"
-#explicit_package_bases = true
+# explicit_package_bases = true
 exclude = """
 (
   /(
@@ -96,31 +55,91 @@ exclude = """
   )/
 )
 """
-
+mypy_path = "./stubs/"
 plugins = ["pydantic.mypy"]
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-module = [
-    "requests_toolbelt",
-    "indexed"
-]
 ignore_missing_imports = true
+module = [
+  "requests_toolbelt",
+  "indexed"
+]
 
+[[tool.mypy.overrides]]
+disable_error_code = ["attr-defined"]
+module = [
+  "pydango.connection.client"
+]
+
+[tool.poetry]
+authors = ["nadobando <7695172+nadobando@users.noreply.github.com>"]
+classifiers = [
+  "Intended Audience::Developers",
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Database",
+  "Framework :: Pydantic :: 1"
+]
+description = "pydantic based ArangoDB ODM"
+name = "pydangorm"
+packages = [{include = "pydango"}]
+readme = "README.md"
+version = "0.1.0"
+
+[tool.poetry.dependencies]
+aioarango = "^1.0.0"
+indexed = "^1.3.0"
+pydantic = "==1.10.12"
+python = ">=3.9,<4.0"
+urllib3 = "==1.26.15"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.3.0"
+coverage = "^7.2.5"
+freezegun = "^1.2.2"
+isort = "^5.12.0"
+mypy = "^1.5.1"
+pre-commit = "^3.3.1"
+pydiction = "^0"
+pytest = "^7.3.1"
+pytest-asyncio = "^0.21.0"
+pytest-cov = "^4.1.0"
+
+[tool.poetry.group.docs.dependencies]
+# mkdocs-material = "^1.5.3"
+mkdocs-material = "^9.4.2"
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+asyncio_mode = "auto"
+
+[tool.ruff]
+exclude = ["stubs"]
+line-length = 120
 
 [tool.semantic_release]
 match = "main"
 prerelease = false
-version_variables = [
-    "pydango/__init__.py:__version__",
-]
 version_toml = [
-    "pyproject.toml:tool.poetry.version",
+  "pyproject.toml:tool.poetry.version"
 ]
+version_variables = [
+  "pydango/__init__.py:__version__"
+]
+
 [tool.semantic_release.changelog]
 exclude_commit_patterns = [
-    "^ci:.*",
-    "^(?!feat:|fix:|perf:|refactor:).*$"
+  "^ci:.*",
+  "^(?!feat:|fix:|perf:|refactor:).*$"
 ]
 
 [tool.semantic_release.publish]

@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import json
 import logging
@@ -11,8 +12,10 @@ from typing import (
     Type,
     Union,
     cast,
+    overload,
 )
 
+from aioarango import ArangoClient
 from aioarango.collection import Collection, StandardCollection
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import AQLQueryExecuteError
@@ -20,7 +23,10 @@ from aioarango.result import Result
 from aioarango.typings import Json
 
 from pydango.connection.consts import PYDANGO_SESSION_KEY
-from pydango.connection.exceptions import DocumentNotFoundError
+from pydango.connection.exceptions import (
+    DocumentNotFoundError,
+    SessionNotInitializedError,
+)
 from pydango.connection.graph_utils import db_traverse, graph_to_document
 from pydango.connection.query_utils import (
     _build_graph_query,
@@ -28,7 +34,7 @@ from pydango.connection.query_utils import (
     _make_upsert_query,
 )
 from pydango.connection.types import CollectionUpsertOptions, UpdateStrategy
-from pydango.connection.utils import get_or_create_collection
+from pydango.connection.utils import get_or_create_db
 from pydango.indexes import (
     FullTextIndex,
     GeoIndex,
@@ -66,22 +72,57 @@ def _collection_from_model(database: StandardDatabase, model: Type[BaseArangoMod
 
 
 class PydangoSession:
-    def __init__(self, database: StandardDatabase):
-        self.database = database
+    @overload
+    def __init__(self, *, database: StandardDatabase): ...
 
-    async def init(self, model: type["ArangoModel"]):
-        collection = await get_or_create_collection(self.database, model)
-        await self.create_indexes(collection, model)
+    @overload
+    def __init__(
+        self, *, client: ArangoClient, database: str, username: str = "", password: str = "", auth_method: str = "basic"
+    ): ...
+
+    def __init__(
+        self,
+        *,
+        client: Optional[ArangoClient] = None,
+        database: Union[StandardDatabase, str],
+        username: str = "root",
+        password: str = "",
+        auth_method: str = "basic",
+    ):
+        if isinstance(database, str):
+            self._db_name = database
+            self.database = None
+        else:
+            self.database = database
+
+        if not isinstance(database, StandardDatabase):
+            self.password = password
+            self.username = username
+            self.client = client
+            self.auth_method = auth_method
+
+    async def initialize(self):
+        if self.database is None:
+            self.database = await get_or_create_db(
+                self.client, self._db_name, user=self.username, password=self.password
+            )
+
+    @property
+    def initialized(self):
+        return isinstance(self.database, StandardDatabase)
 
     @staticmethod
-    async def create_indexes(collection: StandardCollection, model: Type["ArangoModel"]):
+    async def create_indexes(collection: StandardCollection, model: Type["ArangoModel"]) -> Sequence[Result[Json]]:
         if model.Collection.indexes:
             logger.debug("creating indexes", extra=dict(indexes=model.Collection.indexes, model=model))
+        index_requests = []
         for i in model.Collection.indexes or []:
             if isinstance(i, dict):
-                await _INDEX_MAPPING[i["type"]](collection, **i)
+                index_requests.append(_INDEX_MAPPING[i["type"]](collection, **i))
             else:
-                await _INDEX_MAPPING[i.__class__](collection, **dataclasses.asdict(i))
+                index_requests.append(_INDEX_MAPPING[i.__class__](collection, **dataclasses.asdict(i)))
+
+        return cast(list[Result[Json]], await asyncio.gather(*index_requests))
 
     async def save(
         self,
@@ -191,10 +232,20 @@ class PydangoSession:
         return document
 
     async def find(self, model: Type[BaseArangoModel], filters=None, skip=None, limit=None):
+        if self.database is None:
+            raise SessionNotInitializedError(
+                "you should call `await session.initialize()` before using the session or initialize it in the"
+                " constructor with `StandardDatabase`"
+            )
         collection = _collection_from_model(self.database, model)
         return await collection.find(filters, skip, limit)
 
     async def execute(self, query: "AQLQuery", **options):
+        if self.database is None:
+            raise SessionNotInitializedError(
+                f"you should call `await {self.initialize.__name__}` before using the session or initialize it in the"
+                " constructor with `StandardDatabase`"
+            )
         prepared_query = query.prepare()
         logger.debug(
             "executing query", extra={"query": prepared_query.query, "bind_vars": json.dumps(prepared_query.bind_vars)}

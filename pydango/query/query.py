@@ -40,7 +40,7 @@ if TYPE_CHECKING:
         LiteralExpression,
         ObjectExpression,
         RangeExpression,
-        ReturnableMixin,
+        ReturnableExpression,
         VariableExpression,
     )
     from pydango.query.operations import (
@@ -187,7 +187,7 @@ class AQLQuery(QueryExpression):
             return let_operation.expression.variable
         return self
 
-    def return_(self, return_expr: Union["ReturnableMixin", dict]) -> Self:
+    def return_(self, return_expr: Union["ReturnableExpression", dict]) -> Self:
         if isinstance(return_expr, AQLQuery):
             return_expr.parent = self
             return_expr = SubQueryExpression(return_expr)

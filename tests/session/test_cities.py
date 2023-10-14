@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 from typing import TYPE_CHECKING, Annotated, Iterable, Type
 
@@ -14,6 +13,7 @@ from pydango.orm.models.base import BaseArangoModel, Relation
 from pydango.orm.models.edge import EdgeCollectionConfig
 from pydango.orm.models.vertex import VertexCollectionConfig
 from pydango.query.consts import ID
+from pydango.utils import init_models
 
 # from tests.utils import find_dict_diffs, ANY_NOT_NONE
 # from tests.utils2 import Matcher
@@ -136,7 +136,7 @@ def expected_person(person: Person):
 @pytest.fixture(scope="module", autouse=True)
 async def init_collections(session: PydangoSession):
     models: Iterable[Type[BaseArangoModel]] = (Person, City, LivesIn, Visited)
-    await asyncio.gather(*[session.init(coll) for coll in models])
+    await init_models(session, *models)
 
 
 @pytest.fixture
@@ -149,14 +149,13 @@ def person():
             City(name="New York", population=123),
             City(name="Amsterdam", population=123),
         ],
-        edges={
-            Person.lives_in: LivesIn(since=datetime.datetime.now()),
-            Person.visited: [
-                Visited(rating=10, on_date=datetime.date.today()),
-                Visited(rating=10, on_date=datetime.date.today()),
-            ],
-        },
     )
+    p.edges.lives_in = LivesIn(since=datetime.datetime.now())
+    p.edges.visited = [
+        Visited(rating=10, on_date=datetime.date.today()),
+        Visited(rating=10, on_date=datetime.date.today()),
+    ]
+
     return p
 
 
