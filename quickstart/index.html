@@ -20,7 +20,7 @@
     
     
       
-        <title>Quick Start - pydangORM</title>
+        <title>Tutorial - pydangORM</title>
       
     
     
@@ -142,7 +142,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Quick Start
+              Tutorial
             
           </span>
         </div>
@@ -304,7 +304,7 @@
           
   
   <span class="md-ellipsis">
-    Quick Start
+    Tutorial
   </span>
   
 
@@ -315,7 +315,7 @@
         
   
   <span class="md-ellipsis">
-    Quick Start
+    Tutorial
   </span>
   
 
@@ -492,7 +492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../orm/query.md" class="md-nav__link">
+      <a href="../orm/query/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -591,7 +591,7 @@
             
   
   <span class="md-ellipsis">
-    Query Core (Low Level)
+    ORM
   </span>
   
 
@@ -600,6 +600,70 @@
         
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            ORM
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../orm/base/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Base
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Query Core (Low Level)
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
             <span class="md-nav__icon md-icon"></span>
             Query Core (Low Level)
           </label>
@@ -830,7 +894,7 @@
   
 
 
-  <h1>Quick Start</h1>
+  <h1>Tutorial</h1>
 
 <h2 id="basic-setup"><strong>Basic Setup</strong></h2>
 <p>Before you can interact with your ArangoDB database, you'll need to set up a connection. Here's a basic example:</p>
@@ -913,26 +977,23 @@
 <h2 id="running-queries"><strong>Running Queries</strong></h2>
 <h3 id="simple-query">Simple Query</h3>
 <p>Construct and execute a simple query to retrieve all people over the age of 25:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span> <span class="nn">pydango.query</span> <span class="kn">import</span> <span class="n">ORMQuery</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span> <span class="nn">pydango.orm</span> <span class="kn">import</span> <span class="n">for_</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">query</span> <span class="o">=</span> <span class="n">ORMQuery</span><span class="p">()</span><span class="o">.</span><span class="n">for_</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">Person</span><span class="o">.</span><span class="n">age</span> <span class="o">&gt;</span> <span class="mi">25</span><span class="p">)</span><span class="o">.</span><span class="n">return_</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">query</span> <span class="o">=</span> <span class="n">for_</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">Person</span><span class="o">.</span><span class="n">age</span> <span class="o">&gt;</span> <span class="mi">25</span><span class="p">)</span><span class="o">.</span><span class="n">return_</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">people_over_25</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="traversal-query">Traversal Query</h3>
 <p>Construct and execute a simple query to cities visited by people who visited the same cities of a person:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span> <span class="nn">pydango</span> <span class="kn">import</span> <span class="n">ORMQuery</span><span class="p">,</span> <span class="n">TraversalDirection</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">person_visited_cities</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">ORMQuery</span><span class="p">()</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="o">.</span><span class="n">traverse</span><span class="p">(</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">Person</span><span class="p">,</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="n">edges</span><span class="o">=</span><span class="p">[</span><span class="n">Person</span><span class="o">.</span><span class="n">visited</span><span class="p">],</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="n">start</span><span class="o">=</span><span class="n">person</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="n">depth</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="n">direction</span><span class="o">=</span><span class="n">TraversalDirection</span><span class="o">.</span><span class="n">INBOUND</span><span class="p">,</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="p">)</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="o">.</span><span class="n">return_</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span> <span class="nn">pydango.orm</span> <span class="kn">import</span> <span class="n">traverse</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span> <span class="nn">pydango</span> <span class="kn">import</span> <span class="n">TraversalDirection</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">person_visited_cities</span> <span class="o">=</span> <span class="n">traverse</span><span class="p">(</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">Person</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">edges</span><span class="o">=</span><span class="p">[</span><span class="n">Person</span><span class="o">.</span><span class="n">visited</span><span class="p">],</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">start</span><span class="o">=</span><span class="n">person</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">depth</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">direction</span><span class="o">=</span><span class="n">TraversalDirection</span><span class="o">.</span><span class="n">INBOUND</span><span class="p">,</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">)</span><span class="o">.</span><span class="n">return_</span><span class="p">(</span><span class="n">Person</span><span class="p">)</span>
 </span></code></pre></div>
 
 

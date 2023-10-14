@@ -295,7 +295,7 @@
         
   
   <span class="md-ellipsis">
-    Quick Start
+    Tutorial
   </span>
   
 
@@ -406,7 +406,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../orm/query.md" class="md-nav__link">
+      <a href="../../orm/query/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -489,6 +489,70 @@
                 
   
   
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    ORM
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            ORM
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../orm/base/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Base
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -502,10 +566,10 @@
         
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" checked>
         
           
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
             
   
   <span class="md-ellipsis">
@@ -516,8 +580,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_5_1">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_2">
             <span class="md-nav__icon md-icon"></span>
             Query Core (Low Level)
           </label>
@@ -1072,11 +1136,14 @@
   
 
 
-<h1 id="query">Query</h1>
-<h2 id="aqlquery"><strong>AQLQuery</strong></h2>
-<h3 id="introduction"><strong>Introduction</strong></h3>
+<h1 id="query"><strong>Query</strong></h1>
+<p>The pydango/query package provides a comprehensive and Pythonic interface for constructing and executing queries on
+ArangoDB. It abstracts the complexities of direct AQL (ArangoDB Query Language) and offers a structured approach to
+build both simple and complex queries with ease.</p>
+<h3 id="aqlquery"><strong>AQLQuery</strong></h3>
+<h4 id="introduction"><strong>Introduction</strong></h4>
 <p>The <code>AQLQuery</code> class offers a flexible and Pythonic interface for constructing, managing, and preparing AQL queries. It provides methods corresponding to a variety of AQL operations, allowing users to create complex queries by chaining these operations together.</p>
-<h3 id="class-attributes">Class Attributes:</h3>
+<h4 id="class-attributes">Class Attributes:</h4>
 <ul>
 <li><code>_ops</code>: A list of operations associated with the query.</li>
 <li><code>sep</code>: Specifies the separator between different parts of the query.</li>
@@ -1086,53 +1153,53 @@
 <li><code>parent</code>: Reference to a parent <code>AQLQuery</code>, if any.</li>
 <li><code>__is_modification_query__</code>: Boolean indicating if the query modifies data.</li>
 </ul>
-<h3 id="methods">Methods:</h3>
-<h4 id="for_"><strong><code>for_</code></strong></h4>
+<h4 id="methods">Methods:</h4>
+<h5 id="for_"><strong><code>for_</code></strong></h5>
 <p><code>for_(self, collection_or_variable, in_: Expression) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#foroperation"><strong><code>FOR</code></strong></a> operation to the query.  Iterates over a collection or variable.</p>
-<h4 id="filter"><strong><code>filter</code></strong></h4>
+<h5 id="filter"><strong><code>filter</code></strong></h5>
 <p><code>filter(self, filter_expr: Expression) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#filteroperation"><strong><code>FILTER</code></strong></a> operation to the query. Filters the results of a query based on a condition.</p>
-<h4 id="sort"><strong><code>sort</code></strong></h4>
+<h5 id="sort"><strong><code>sort</code></strong></h5>
 <p><code>sort(self, *args: Expression) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#sortoperation"><strong><code>SORT</code></strong></a> operation to the query. Sorts the results of a query based on provided parameters.</p>
-<h4 id="let"><strong><code>let</code></strong></h4>
+<h5 id="let"><strong><code>let</code></strong></h5>
 <p><code>let(self, variable: Union[str, VariableExpression], value: Expression) -&gt; Union[VariableExpression, 'AQLQuery']</code>
 Adds a <a href="../operations/#letoperation"><strong><code>LET</code></strong></a> operation to the query. Defines a variable within the query.</p>
-<h4 id="return_"><strong><code>return_</code></strong></h4>
+<h5 id="return_"><strong><code>return_</code></strong></h5>
 <p><code>return_(self, return_expr: Expression) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#returnoperation"><strong><code>RETURN</code></strong></a> operation to the query. Specifies the return value of the query.</p>
-<h4 id="limit"><strong><code>limit</code></strong></h4>
+<h5 id="limit"><strong><code>limit</code></strong></h5>
 <p><code>limit(self, limit: int, offset: Optional[int] = None) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#limitoperation"><strong><code>LIMIT</code></strong></a> operation to the query. Limits the number of results returned by the query.</p>
-<h4 id="insert"><strong><code>insert</code></strong></h4>
+<h5 id="insert"><strong><code>insert</code></strong></h5>
 <p><code>insert(self, doc: Dict[str, Any], collection: str) -&gt; 'AQLQuery'</code>
 Adds an <a href="../operations/#insertoperation"><strong><code>INSERT</code></strong></a> operation to the query. Inserts a document into a collection.</p>
-<h4 id="remove"><strong><code>remove</code></strong></h4>
+<h5 id="remove"><strong><code>remove</code></strong></h5>
 <p><code>remove(...) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#removeoperation"><strong><code>REMOVE</code></strong></a> operation to the query. Removes documents from a collection.</p>
-<h4 id="update"><strong><code>update</code></strong></h4>
+<h5 id="update"><strong><code>update</code></strong></h5>
 <p><code>update(...) -&gt; 'AQLQuery'</code>
 Adds an <a href="../operations/#updateoperation"><strong><code>UPDATE</code></strong></a> operation to the query. Updates documents in a collection.</p>
-<h4 id="replace"><strong><code>replace</code></strong></h4>
+<h5 id="replace"><strong><code>replace</code></strong></h5>
 <p><code>replace(...) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#replaceoperation"><strong><code>REPLACE</code></strong></a> operation to the query. Replaces documents in a collection.</p>
-<h4 id="upsert"><strong><code>upsert</code></strong></h4>
+<h5 id="upsert"><strong><code>upsert</code></strong></h5>
 <p><code>upsert(...) -&gt; 'AQLQuery'</code>
 Adds an <a href="../operations/#upsertoperation"><strong><code>UPSERT</code></strong></a> operation to the query. Inserts or updates documents in a collection.</p>
-<h4 id="collect"><strong><code>collect</code></strong></h4>
+<h5 id="collect"><strong><code>collect</code></strong></h5>
 <p><code>collect(...) -&gt; 'AQLQuery'</code>
 Adds a <a href="../operations/#collectoperation"><strong><code>COLLECT</code></strong></a> operation to the query. Collects documents from a collection.</p>
-<h4 id="traverse"><strong><code>traverse</code></strong></h4>
+<h5 id="traverse"><strong><code>traverse</code></strong></h5>
 <p><code>traverse(...) -&gt; 'AQLQuery'</code>
 Creates a <a href="../operations/#traverseoperation"><strong><code>TRAVERSE</code></strong></a> operation. Traverses a graph.</p>
-<h4 id="prepare"><strong><code>prepare</code></strong></h4>
+<h5 id="prepare"><strong><code>prepare</code></strong></h5>
 <p><code>prepare() -&gt; PreparedQuery</code>
 Prepares the query for execution, returning a <code>PreparedQuery</code> instance.</p>
-<h2 id="preparedquery"><strong>PreparedQuery</strong></h2>
-<h3 id="introduction_1">Introduction</h3>
+<h3 id="preparedquery"><strong>PreparedQuery</strong></h3>
+<h4 id="introduction_1">Introduction</h4>
 <p>The PreparedQuery class represents a prepared AQL query ready for execution against an ArangoDB instance. It encapsulates the AQL query string and any bind variables that need to be provided alongside the query.</p>
-<h3 id="class-attributes_1">Class Attributes:</h3>
+<h4 id="class-attributes_1">Class Attributes:</h4>
 <ul>
 <li><strong><code>query</code></strong>: A string that holds the AQL query.</li>
 <li><strong><code>bind_vars</code></strong>: A dictionary of variables to be bound to the query. These are represented in a JSON-compatible format.</li>
