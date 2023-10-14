@@ -22,21 +22,29 @@ theme:
 nav:
   - Home: index.md
   - Installation: installation.md
-  - Quick Start: quickstart.md
+  - Tutorial: quickstart.md
   - Documentation:
-      Vertex: orm/vertex.md
-      Edge: orm/edge.md
-      Collection Config: orm/collection.md
-      Query: orm/query.md
-      Session: session.md
+      - Vertex: orm/vertex.md
+      - Edge: orm/edge.md
+      - Collection Config: orm/collection.md
+      - Query: orm/query.md
+      - Session: session.md
   - API:
-      Query Core (Low Level):
-        Usage: query/usage.md
-        Expressions: query/expressions.md
-        Functions: query/functions.md
-        Options: query/options.md
-        Operations: query/operations.md
-        Query: query/query.md
+      - ORM:
+          - Base: orm/base.md
+
+#        - Vertex: api/orm/vertex.md
+#        - Edge: api/orm/edge.md
+#        - Collection Config: api/orm/collection.md
+#        - Query: api/orm/query.md
+#        - Session: api/session.md
+      - Query Core (Low Level):
+          - Usage: query/usage.md
+          - Expressions: query/expressions.md
+          - Functions: query/functions.md
+          - Options: query/options.md
+          - Operations: query/operations.md
+          - Query: query/query.md
 
 repo_url: https://github.com/nadobando/pydangorm
 repo_name: nadobando/pydangorm

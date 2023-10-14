@@ -56,7 +56,7 @@ ______________________________________________________________________
 
 ### **Contributions**
 
-We're actively looking for contributors to help improve pydangorm and expand its capabilities.
+We're actively looking for contributors to help improve `pydangorm` and expand its capabilities.
 
 Whether you're a seasoned
 developer or just starting out, your contributions are valuable to us. If you have ideas for new features,

@@ -1,4 +1,4 @@
-# Options
+# **Options**
 
 A Base class representing general AQL options.
 Some AQL Operations have options that can be passed to them. to configure how the operation is performed.

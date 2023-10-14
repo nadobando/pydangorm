@@ -56,7 +56,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.local
-          key: poetry-1.1.12-0
+          key: poetry-1.4.0
 
       - name: Install and configure Poetry
         uses: snok/install-poetry@v1
@@ -77,13 +77,12 @@ jobs:
       # Install dependencies. `--no-root` means "install all dependencies but not the project
       # itself", which is what you want to avoid caching _your_ code. The `if` statement
       # ensures this only runs on a cache miss.
-      - run: poetry install --no-interaction --no-root
+      - run: poetry install --no-interaction --no-root --with docs
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
-      - run: poetry install --no-interaction
+      - run: poetry install --no-interaction --with docs
 
       - name: test
-
         run: |
           poetry run pytest --cov=pydango --cov-report=xml:coverage.xml --junitxml=test-results/test-results.xml tests
 
@@ -110,6 +109,7 @@ jobs:
     name: Release
     if: github.ref == 'refs/heads/main'
     needs:
+      - pre-commit
       - test
     runs-on: ubuntu-latest
     concurrency: release
@@ -133,7 +133,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.local
-          key: poetry-1.1.12-0
+          key: poetry-1.4.0
 
       - name: Install and configure Poetry
         uses: snok/install-poetry@v1
@@ -148,6 +148,18 @@ jobs:
         uses: python-semantic-release/python-semantic-release@v8.0.8
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - uses: actions/cache@v3
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+
+      - run: poetry install --no-interaction --only docs
+
+      - run: poetry run mkdocs gh-deploy --force
 
       - run: |
           poetry build
@@ -182,19 +194,3 @@ jobs:
       - name: Publish package distributions to PyPI
 
         uses: pypa/gh-action-pypi-publish@release/v1
-
-      - name: Publish package distributions to GitHub Releases
-        uses: python-semantic-release/upload-to-gh-release@main
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-
-      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
-      - uses: actions/cache@v3
-        with:
-          key: mkdocs-material-${{ env.cache_id }}
-          path: .cache
-          restore-keys: |
-            mkdocs-material-
-      - run: pip install mkdocs-material
-      - run: mkdocs gh-deploy --force

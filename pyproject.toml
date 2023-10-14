@@ -88,9 +88,12 @@ classifiers = [
   "Framework :: Pydantic :: 1"
 ]
 description = "pydantic based ArangoDB ODM"
+homepage = "https://nadobando.github.io/pydangorm"
+license = "MIT"
 name = "pydangorm"
 packages = [{include = "pydango"}]
 readme = "README.md"
+repository = "https://github.com/nadobando/pydangorm"
 version = "0.2.0"
 
 [tool.poetry.dependencies]
@@ -113,8 +116,8 @@ pytest-asyncio = "^0.21.0"
 pytest-cov = "^4.1.0"
 
 [tool.poetry.group.docs.dependencies]
-# mkdocs-material = "^1.5.3"
 mkdocs-material = "^9.4.2"
+pymdown-extensions = "^10.3"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
