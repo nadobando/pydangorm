@@ -56,7 +56,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.local
-          key: poetry-1.1.12-0
+          key: poetry-1.4.0
 
       - name: Install and configure Poetry
         uses: snok/install-poetry@v1
@@ -77,13 +77,12 @@ jobs:
       # Install dependencies. `--no-root` means "install all dependencies but not the project
       # itself", which is what you want to avoid caching _your_ code. The `if` statement
       # ensures this only runs on a cache miss.
-      - run: poetry install --no-interaction --no-root
+      - run: poetry install --no-interaction --no-root --with docs
         if: steps.cache-deps.outputs.cache-hit != 'true'
 
       - run: poetry install --no-interaction --with docs
 
       - name: test
-
         run: |
           poetry run pytest --cov=pydango --cov-report=xml:coverage.xml --junitxml=test-results/test-results.xml tests
 
@@ -133,7 +132,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.local
-          key: poetry-1.1.12-0
+          key: poetry-1.4.0
 
       - name: Install and configure Poetry
         uses: snok/install-poetry@v1
@@ -157,7 +156,7 @@ jobs:
           restore-keys: |
             mkdocs-material-
 
-      - run: poetry run mkdocs gh-deploy --force
+      - run: .venv/bin/mkdocs gh-deploy --force
       - run: |
           poetry build
 

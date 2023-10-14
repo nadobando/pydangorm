@@ -1,4 +1,4 @@
-## AQLQuery Usage
+## **AQLQuery**
 
 ### 1. Simple Query to Fetch Data
 
