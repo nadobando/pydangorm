@@ -157,7 +157,7 @@ jobs:
           restore-keys: |
             mkdocs-material-
 
-      - run: mkdocs gh-deploy --force
+      - run: poetry run mkdocs gh-deploy --force
       - run: |
           poetry build
 
