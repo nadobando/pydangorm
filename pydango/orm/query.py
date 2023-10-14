@@ -387,7 +387,10 @@ def for_(
 
 
 def traverse(
-    collection_or_variable: ORMForParams,
-    in_: Optional[Union["IterableExpression", "VariableExpression", list["VariableExpression"], list]] = None,
-) -> ORMQuery:
-    return ORMQuery().for_(collection_or_variable, in_)
+    iterators: TraverseIterators,
+    edges: Union[str, CollectionExpression, Sequence[Union[str, CollectionExpression]]],
+    start: Union["LiteralExpression", "VariableExpression", FieldExpression, str],
+    depth: Union["RangeExpression", range, tuple[int, int]],
+    direction: "TraversalDirection",
+):
+    return ORMQuery().traverse(iterators, edges, start, depth, direction)

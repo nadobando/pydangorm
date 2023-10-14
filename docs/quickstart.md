@@ -95,9 +95,9 @@ async def async_application():
 Construct and execute a simple query to retrieve all people over the age of 25:
 
 ```python
-from pydango.query import ORMQuery
+from pydango.orm import for_
 
-query = ORMQuery().for_(Person).filter(Person.age > 25).return_(Person)
+query = for_(Person).filter(Person.age > 25).return_(Person)
 people_over_25 = await session.execute(query)
 ```
 
@@ -106,17 +106,14 @@ people_over_25 = await session.execute(query)
 Construct and execute a simple query to cities visited by people who visited the same cities of a person:
 
 ```python
-from pydango import ORMQuery, TraversalDirection
+from pydango.orm import traverse
+from pydango import TraversalDirection
 
-person_visited_cities = (
-    ORMQuery()
-    .traverse(
-        Person,
-        edges=[Person.visited],
-        start=person.id,
-        depth=(1, 2),
-        direction=TraversalDirection.INBOUND,
-    )
-    .return_(Person)
-)
+person_visited_cities = traverse(
+    Person,
+    edges=[Person.visited],
+    start=person.id,
+    depth=(1, 2),
+    direction=TraversalDirection.INBOUND,
+).return_(Person)
 ```

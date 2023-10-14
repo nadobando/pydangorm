@@ -4,7 +4,7 @@
 
 ### Chore
 
-* chore: fix pyproject.toml (#5) ([`e9063ff`](https://github.com/nadobando/pydangorm/commit/e9063ff034e4042d778b992aff2c55191d416fa9))
+- chore: fix pyproject.toml (#5) ([`e9063ff`](https://github.com/nadobando/pydangorm/commit/e9063ff034e4042d778b992aff2c55191d416fa9))
 
 ### Feature
 
