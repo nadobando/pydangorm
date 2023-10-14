@@ -73,13 +73,7 @@ module = [
 ]
 
 [tool.poetry]
-name = "pydangorm"
-version = "0.2.0"
-license = "MIT"
 authors = ["nadobando <7695172+nadobando@users.noreply.github.com>"]
-description = "pydantic based ArangoDB ODM"
-readme = "README.md"
-
 classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
@@ -93,12 +87,15 @@ classifiers = [
   "Topic :: Database",
   "Framework :: Pydantic :: 1"
 ]
-
-packages = [{include = "pydango"}]
-homepage = "https://github.com/nadobando/pydangorm"
+description = "pydantic based ArangoDB ODM"
 documentation = "https://nadobando.github.io/pydangorm"
+homepage = "https://github.com/nadobando/pydangorm"
+license = "MIT"
+name = "pydangorm"
+packages = [{include = "pydango"}]
+readme = "README.md"
 repository = "https://github.com/nadobando/pydangorm"
-
+version = "0.2.0"
 
 [tool.poetry.dependencies]
 aioarango = "^1.0.0"
