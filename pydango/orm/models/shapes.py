@@ -1,4 +1,4 @@
-from pydantic.fields import (
+from pydantic.v1.fields import (
     SHAPE_FROZENSET,
     SHAPE_ITERABLE,
     SHAPE_LIST,

@@ -2,8 +2,8 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast, overload
 
-from pydantic import BaseModel
-from pydantic.utils import lenient_issubclass
+from pydantic.v1 import BaseModel
+from pydantic.v1.utils import lenient_issubclass
 
 from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.models.base import Aliased, BaseArangoModel, LazyProxy

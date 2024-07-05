@@ -34,7 +34,9 @@ def test_simple_query():
     aql_query, coll = simple_query(param1)
     expected_compiled = "FOR u IN `users` FILTER u.age > @param1 SORT u.age ASC RETURN u"
     repr_i = repr(coll.iterator)
-    expected_repr = f"FOR {repr_i} IN {repr(coll)} FILTER {repr_i}.age > ? SORT {repr_i}.age ASC RETURN {repr_i}"
+    expected_repr = (
+        f"FOR {repr_i} IN {repr(coll)} FILTER {repr_i}.age > ? SORT {repr_i}.age SortDirection.ASC RETURN {repr_i}"
+    )
     repr_query = repr(aql_query)
     assert repr_query == expected_repr
     assert aql_query.compile() == expected_compiled
@@ -53,7 +55,7 @@ def test_complex_query():
         f"FILTER {repr(coll1.iterator)}.age > ? "
         f"FOR {repr(coll2.iterator)} IN {repr(coll2)} "
         f"FILTER {repr(coll2.iterator)}.date > {repr(coll1.iterator)}.date "
-        f"SORT {repr(coll1.iterator)}.name ASC "
+        f"SORT {repr(coll1.iterator)}.name SortDirection.ASC "
         f"RETURN {repr(coll1.iterator)}"
     )
     repr_query = repr(aql_query)
@@ -84,7 +86,7 @@ def test_multiple_filters():
         f"FOR {repr(coll.iterator)} IN {repr(coll)} "
         f"FILTER {repr(coll.iterator)}.age > ? "
         f"FILTER {repr(coll.iterator)}.gender == ? "
-        f"SORT {repr(coll.iterator)}.name ASC "
+        f"SORT {repr(coll.iterator)}.name SortDirection.ASC "
         f"RETURN {repr(coll.iterator)}"
     )
     repr_query = repr(aql_query)
@@ -103,7 +105,7 @@ def test_subquery_in_for():
     expected_repr = (
         f"FOR {repr(it)} IN (FOR {repr(coll.iterator)} IN {repr(coll)} "
         f"FILTER {repr(coll.iterator)}.name == ? "
-        f"SORT {repr(coll.iterator)}.name ASC "
+        f"SORT {repr(coll.iterator)}.name SortDirection.ASC "
         f"RETURN {repr(coll.iterator)}) FILTER {repr(it)}.a == ? "
         f"RETURN {repr(it)}"
     )
@@ -300,11 +302,11 @@ def test_multiple_subqueries_with_multiple_params():
         f"RETURN {{user: {repr(coll1.iterator)}.name, latest_order: "
         f"(FOR {repr(coll2.iterator)} IN {repr(coll2)} "
         f"FILTER {repr(coll2.iterator)}.status == ? "
-        f"SORT {repr(coll2.iterator)}.date DESC "
+        f"SORT {repr(coll2.iterator)}.date SortDirection.DESC "
         f"RETURN {repr(coll2.iterator)}), active_users: "
         f"(FOR {repr(coll1.iterator)} IN {repr(coll1)} "
         f"FILTER {repr(coll1.iterator)}.age > ? "
-        f"SORT {repr(coll1.iterator)}.name ASC "
+        f"SORT {repr(coll1.iterator)}.name SortDirection.ASC "
         f"RETURN {repr(coll1.iterator)})}}"
     )
 
@@ -362,11 +364,11 @@ def test_nested_return_expression():
         f"RETURN {{user: {repr(coll1.iterator)}.name, latest_order: "
         f"(FOR {repr(coll2.iterator)} IN {repr(coll2)} "
         f"FILTER {repr(coll2.iterator)}.status == ? "
-        f"SORT {repr(coll2.iterator)}.date DESC "
+        f"SORT {repr(coll2.iterator)}.date SortDirection.DESC "
         f"RETURN {repr(coll2.iterator)}), top_products: {{expensive_products: "
         f"(FOR {repr(coll3.iterator)} IN {repr(coll3)} "
         f"FILTER {repr(coll3.iterator)}.price > ? "
-        f"SORT {repr(coll3.iterator)}.price DESC "
+        f"SORT {repr(coll3.iterator)}.price SortDirection.DESC "
         f"RETURN {repr(coll3.iterator)}), cheap_products: ?}}}}"
     )
 
@@ -450,15 +452,15 @@ def test_complex_query2():
         f"FOR {repr(coll1.iterator)} IN {repr(coll1)} "
         f"FILTER {repr(coll1.iterator)}.age > ? FILTER {repr(coll1.iterator)}.gender == ? "
         f"FOR {repr(coll2.iterator)} IN {repr(coll2)} "
-        f"FILTER {repr(coll2.iterator)}.date >= ? SORT {repr(coll2.iterator)}.date DESC LIMIT 100 "
+        f"FILTER {repr(coll2.iterator)}.date >= ? SORT {repr(coll2.iterator)}.date SortDirection.DESC LIMIT 100 "
         f"RETURN {{user: {repr(coll1.iterator)}.name, "
         f"top_orders: (FOR {repr(coll2.iterator)} IN {repr(coll2)} "
         f"FILTER {repr(coll2.iterator)}.user_id == {repr(coll1.iterator)}.id "
-        f"SORT {repr(coll2.iterator)}.total_amount DESC LIMIT 10 "
+        f"SORT {repr(coll2.iterator)}.total_amount SortDirection.DESC LIMIT 10 "
         f"RETURN {repr(coll2.iterator)}), "
         f"products: (FOR {repr(coll3.iterator)} IN {repr(coll3)} "
         f"FILTER {repr(coll3.iterator)}.order_id == {repr(coll2.iterator)}.id "
-        f"SORT {repr(coll3.iterator)}.price ASC LIMIT 5 "
+        f"SORT {repr(coll3.iterator)}.price SortDirection.ASC LIMIT 5 "
         f"RETURN {repr(coll3.iterator)})}}"
     )
 
@@ -512,19 +514,19 @@ def test_nested_subqueries():
         f"FILTER {repr(coll1.iterator)}.age > ? "
         f"FOR {repr(coll2.iterator)} IN {repr(coll2)} "
         f"FILTER {repr(coll2.iterator)}.date >= ? "
-        f"SORT {repr(coll2.iterator)}.date DESC LIMIT 100 "
+        f"SORT {repr(coll2.iterator)}.date SortDirection.DESC LIMIT 100 "
         f"RETURN {{user: {repr(coll1.iterator)}.name, "
         f"top_orders: (FOR {repr(coll2.iterator)} IN {repr(coll2)} "
         f"FILTER {repr(coll2.iterator)}.user_id == {repr(coll1.iterator)}.id "
-        f"SORT {repr(coll2.iterator)}.total_amount DESC LIMIT 10 "
+        f"SORT {repr(coll2.iterator)}.total_amount SortDirection.DESC LIMIT 10 "
         f"RETURN {repr(coll2.iterator)}), "
         f"latest_order: (FOR {repr(coll2.iterator)} IN {repr(coll2)} "
         f"FILTER {repr(coll2.iterator)}.user_id == {repr(coll1.iterator)}.id "
-        f"SORT {repr(coll2.iterator)}.date DESC LIMIT 1 "
+        f"SORT {repr(coll2.iterator)}.date SortDirection.DESC LIMIT 1 "
         f"RETURN {repr(coll2.iterator)}), "
         f"products: (FOR {repr(coll3.iterator)} IN {repr(coll3)} "
         f"FILTER {repr(coll3.iterator)}.order_id == {repr(coll2.iterator)}.id "
-        f"SORT {repr(coll3.iterator)}.price ASC LIMIT 5 "
+        f"SORT {repr(coll3.iterator)}.price SortDirection.ASC LIMIT 5 "
         f"RETURN {repr(coll3.iterator)})}}"
     )
 
@@ -700,7 +702,7 @@ def test_let_query():
 
     expected_repr = (
         f"LET {DYNAMIC_ALIAS} = (FOR {repr(coll.iterator)} IN {repr(coll)} FILTER {repr(coll.iterator)}.age > ? SORT"
-        f" {repr(coll.iterator)}.age ASC RETURN {repr(coll.iterator)}) RETURN {repr(let)}"
+        f" {repr(coll.iterator)}.age SortDirection.ASC RETURN {repr(coll.iterator)}) RETURN {repr(let)}"
     )
 
     assert repr(aql) == expected_repr

@@ -95,7 +95,7 @@ def db_traverse(
             continue
 
         if isinstance(relation_doc, LazyProxy):
-            relation_doc = relation_doc.__instance__
+            relation_doc = relation_doc.__instance__  # type: ignore[assignment]
 
         if model.edges:
             for edge_field, obj in model.edges.__dict__.items():

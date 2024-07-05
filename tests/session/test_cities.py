@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Annotated, Iterable, Type
 
 import pytest
 from _pytest.fixtures import FixtureRequest
-from pydantic import Field
+from pydantic.v1 import Field
 from pydiction import ANY_NOT_NONE, Matcher
 
 from pydango.connection.session import PydangoSession

@@ -36,8 +36,8 @@ def test_simple_query():
     aql = orm_query.for_(User).filter(User.age > 10).sort(+User.age).return_(User)
     i = aql.orm_bound_vars[User]
     expected_repr = (
-        f"FOR {repr(i)} IN <CollectionExpression: users> FILTER {repr(i)}.age > ? SORT {repr(i)}.age ASC RETURN"
-        f" {repr(i)}"
+        f"FOR {repr(i)} IN <CollectionExpression: users> FILTER {repr(i)}.age > ? SORT {repr(i)}.age SortDirection.ASC"
+        f" RETURN {repr(i)}"
     )
     expected_compilation = "FOR var1 IN `users` FILTER var1.age > @param1 SORT var1.age ASC RETURN var1"
 
@@ -51,8 +51,8 @@ def test_named_aliased():
     i = aql.orm_bound_vars[aliased_user]
     expected_compiled = "FOR u IN `users` FILTER u.age > @param1 SORT u.age DESC RETURN u"
     expected_repr = (
-        f"FOR {repr(i)} IN <CollectionExpression: users> FILTER {repr(i)}.age > ? SORT {repr(i)}.age DESC RETURN"
-        f" {repr(i)}"
+        f"FOR {repr(i)} IN <CollectionExpression: users> FILTER {repr(i)}.age > ? SORT {repr(i)}.age SortDirection.DESC"
+        f" RETURN {repr(i)}"
     )
 
     assert repr(aql) == expected_repr
@@ -66,8 +66,8 @@ def test_aliased():
     i = aql.orm_bound_vars[aliased_user]
     expected_compiled = "FOR var1 IN `users` FILTER var1.age > @param1 SORT var1.age DESC RETURN var1"
     expected_repr = (
-        f"FOR {repr(i)} IN <CollectionExpression: users> FILTER {repr(i)}.age > ? SORT {repr(i)}.age DESC RETURN"
-        f" {repr(i)}"
+        f"FOR {repr(i)} IN <CollectionExpression: users> FILTER {repr(i)}.age > ? SORT {repr(i)}.age SortDirection.DESC"
+        f" RETURN {repr(i)}"
     )
 
     assert repr(aql) == expected_repr
@@ -117,7 +117,7 @@ def test_binary_expression():
         f"FOR {repr(i2)} IN <CollectionExpression: posts> "
         f"FILTER {repr(i2)}.user == {repr(i1)}.id &&"
         f" {repr(i2)}.created_date > ? "
-        f"SORT {repr(i2)}.likes ASC, {repr(i1)}.age DESC "
+        f"SORT {repr(i2)}.likes SortDirection.ASC, {repr(i1)}.age SortDirection.DESC "
         f"RETURN {repr(i1)}"
     )
 

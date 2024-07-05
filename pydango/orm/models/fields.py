@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Dict, Optional, Type, Union, cast
 
-from pydantic.fields import ModelField
+from pydantic.v1.fields import ModelField
 
 from pydango.orm.models.sentinel import LazyFetch
 from pydango.query.expressions import (
@@ -11,7 +11,7 @@ from pydango.query.expressions import (
 )
 
 if TYPE_CHECKING:
-    from pydantic.fields import LocStr, ModelOrDc, ValidateReturn
+    from pydantic.v1.fields import LocStr, ModelOrDc, ValidateReturn
 
     from pydango.orm.models.vertex import TVertexModel
     from pydango.query.expressions import QueryExpression
