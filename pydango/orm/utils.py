@@ -1,7 +1,7 @@
 import sys
 from functools import lru_cache
 
-from pydantic.typing import evaluate_forwardref
+from pydantic.v1.typing import evaluate_forwardref
 
 
 def get_globals(cls):

@@ -19,10 +19,10 @@ from typing import (
     get_origin,
 )
 
-from pydantic import BaseConfig, ConfigError, Field
-from pydantic.fields import SHAPE_SINGLETON, ModelField, PrivateAttr, Undefined
-from pydantic.main import BaseModel, ModelMetaclass
-from pydantic.typing import resolve_annotations
+from pydantic.v1 import BaseConfig, ConfigError, Field
+from pydantic.v1.fields import SHAPE_SINGLETON, ModelField, PrivateAttr, Undefined
+from pydantic.v1.main import BaseModel, ModelMetaclass
+from pydantic.v1.typing import resolve_annotations
 
 from pydango.connection.consts import PYDANGO_SESSION_KEY
 from pydango.indexes import Indexes
@@ -41,8 +41,8 @@ from pydango.query.consts import ID, KEY, REV
 from pydango.query.expressions import FieldExpression, ObjectExpression
 
 if TYPE_CHECKING:
-    from pydantic.main import GetterDict, Model
-    from pydantic.typing import AbstractSet, DictStrAny, MappingIntStrAny
+    from pydantic.v1.main import GetterDict, Model
+    from pydantic.v1.typing import AbstractSet, DictStrAny, MappingIntStrAny
 
     from pydango.connection.session import PydangoSession
     from pydango.orm.models.types import RelationshipFields, Relationships

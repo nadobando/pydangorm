@@ -278,28 +278,28 @@ async def test_save(session: PydangoSession, request: FixtureRequest):
     fiona.father = father
     fiona.mother = mother
 
-    fiona.edges = sister_edges.copy()
+    fiona.edges = sister_edges.copy()  # type: ignore[assignment]
 
     jessica.sisters = [fiona]
     jessica.brothers = [ben, john]
     jessica.father = father
     jessica.mother = mother
 
-    jessica.edges = sister_edges.copy()
+    jessica.edges = sister_edges.copy()  # type: ignore[assignment]
 
     john.sisters = [fiona, jessica]
     john.brothers = [ben]
     john.father = father
     john.mother = mother
 
-    john.edges = brother_edges.copy()
+    john.edges = brother_edges.copy()  # type: ignore[assignment]
 
     ben.sisters = [fiona, jessica]
     ben.brothers = [john]
     ben.father = father
     ben.mother = mother
 
-    ben.edges = brother_edges.copy()
+    ben.edges = brother_edges.copy()  # type: ignore[assignment]
 
     p = await session.save(john)
     request.config.cache.set("person_key", p.key)  # type: ignore[union-attr]

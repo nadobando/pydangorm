@@ -10,9 +10,9 @@ from typing import (
     cast,
 )
 
-from pydantic.fields import Field, ModelField
-from pydantic.main import create_model
-from pydantic.typing import evaluate_forwardref
+from pydantic.v1.fields import Field, ModelField
+from pydantic.v1.main import create_model
+from pydantic.v1.typing import evaluate_forwardref
 
 from pydango.orm.consts import EDGES
 from pydango.orm.encoders import jsonable_encoder
@@ -24,7 +24,7 @@ from pydango.orm.models.utils import convert_edge_data_to_valid_kwargs
 from pydango.orm.utils import evaluate_forward_ref, get_globals
 
 if TYPE_CHECKING:
-    from pydantic.typing import AbstractSetIntStr, DictStrAny, MappingIntStrAny
+    from pydantic.v1.typing import AbstractSetIntStr, DictStrAny, MappingIntStrAny
 
 TVertexModel = TypeVar("TVertexModel", bound="VertexModel")
 TEdges = TypeVar("TEdges", bound=EdgeData)

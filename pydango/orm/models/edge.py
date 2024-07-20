@@ -1,14 +1,14 @@
 from abc import ABC
 from typing import TYPE_CHECKING, Generic, Optional, TypeVar, Union
 
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 
 from pydango.orm.encoders import jsonable_encoder
 from pydango.orm.models import BaseArangoModel, CollectionConfig, CollectionType
 from pydango.query.consts import FROM, TO
 
 if TYPE_CHECKING:
-    from pydantic.typing import DictStrAny
+    from pydantic.v1.typing import DictStrAny
 
 TEdge = TypeVar("TEdge", bound="EdgeModel")
 

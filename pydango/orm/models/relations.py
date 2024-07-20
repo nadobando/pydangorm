@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING, ForwardRef, Optional, Type
 
 if TYPE_CHECKING:
-    from pydantic.fields import ModelField
-    from pydantic.typing import ReprArgs
+    from pydantic.v1.fields import ModelField
+    from pydantic.v1.typing import ReprArgs
 
     from pydango.orm.models.base import LinkTypes
     from pydango.orm.models.edge import TEdge
