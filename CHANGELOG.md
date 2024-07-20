@@ -2,6 +2,13 @@
 
 
 
+## v0.3.0 (2024-07-20)
+
+### Feature
+
+* feat: allow pydantic v2 usage (#15) ([`62d50a9`](https://github.com/nadobando/pydangorm/commit/62d50a96f65480b5b22101ac7a0d954b89b8253d))
+
+
 ## v0.2.1 (2023-10-14)
 
 ### Fix
